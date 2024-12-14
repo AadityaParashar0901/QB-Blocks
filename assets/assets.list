@@ -1,0 +1,48 @@
+textures {
+grass_block_top
+grass_block_side
+dirt
+sand
+sandstone
+snow
+grass_block_snow
+oak_log
+oak_log_top
+oak_leaves
+oak_planks
+cherry_log
+cherry_log_top
+cherry_leaves
+cherry_planks
+}
+models {
+cube
+}
+// +X -X +Y -Y +Z -Z
+blocks {
+totalblocks = 10
+name = "grass"
+textures = [2,2,1,3,2,2]
+name = "dirt"
+textures = 3
+name = "sand"
+textures = 4
+name = "snow"
+textures = [7,7,6,3,7,7]
+name = "oak_log"
+textures = [8,8,9,9,8,8]
+name = "oak_leaves"
+textures = 10
+name = "oak_planks"
+textures = 11
+name = "cherry_log"
+textures = [12,12,13,13,12,12]
+name = "cherry_leaves"
+textures = 14
+name = "cherry_planks"
+textures = 15
+}
+sun sun
+moon moon
+clouds clouds
+end

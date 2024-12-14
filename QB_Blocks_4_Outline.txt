@@ -1,0 +1,95 @@
+Structures:
+	Vec2_Float, Vec2_Int
+	Vec3_Float, Vec3_Int
+	Block, Chunk
+Constants
+Global Arrays:
+	Chunk Chunk
+	Block Chunk_Data
+	Vec3_Int Vertices
+	Vec2_Float TexCoords
+	Vec3_Float Normals
+Global Variables:
+	Vec3_Float Player Position, Player Angle, Player Velocity
+	Vec3_Float Block Selection Ray
+	Time Variables, Sky Light Variables
+Load Assets:
+	Load Images
+	Load Sound Files
+	Load Models
+Display Loading Screen
+Create Secondary Assets / GL Assets
+Display Menu
+;--------Game Pre-Start--------;
+Load Player Data
+Initialize Variables
+Display Chunk Loading:
+	Load 81 Chunks (Render Distance = 4)
+Initialize Timers:
+	FPS Counter
+	Game Tick
+;------------------------------;
+;---------Game Start--------;
+Begin Timers
+Main Loop:
+	Screen Resize Code
+	Mouse Input Loop
+	Game Pause Code
+	Game Play Code:
+		Chunk Loading
+		Mouse Movement
+		Player Movement
+		Other Keyboard Controls
+		Player Physics
+;---------------------------;
+Functions:
+	GL Code:
+		(Static) Texture Handles
+		Texture Generation Code
+		Clear GL Buffer
+		GL Projection Matrix
+		GL Translate, Rotate
+		Draw Sun, Moon
+		Initialize Fog
+		Draw Chunks (Only Visible -> (Function) Chunk Visibility)
+		Draw Clouds
+		Print Info
+	Noise Library # (Add Caching)
+	Chunk Load:
+		For Every 2D Position:
+			Calculate Biome
+			Calculate Height Map
+			Put Blocks
+	Chunk Reload
+		For Every 3D Position:
+			Calculate Visibility for each face
+			Add Face Quad to Vertices, TexCoords, Normals
+		Store Total Quads Count
+	Chunk Update
+	Chunk Load Save
+	Chunk Save
+	Player Movement
+	Player Data Load
+	Player Data Save
+	Assets Load
+	Block Functions {
+		getBlock
+		isTransparent
+		isBlockFluid
+	}
+	Distance Functions
+	Min, Max Functions
+	In Range
+	In Box
+	Chunk Visibility
+	Camera Position -> Chunk Relative Position
+	Game Settings Load
+	Game Settings Save
+	UI Elements:
+		Button:
+			Normal
+			Change Number
+			Backward, Forward
+		Input Box
+		Check Box
+		Slider
