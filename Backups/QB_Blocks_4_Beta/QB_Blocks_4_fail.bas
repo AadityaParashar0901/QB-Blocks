@@ -48,8 +48,6 @@ RenderDistance = 8
 FOG = -1
 Brightness = 0
 FLYMODE = -1
-Game_Settings_Load
-Game_Settings_Save
 Const Player_Height = 1.8
 Const Player_Obesity = 0.5
 Dim Shared Player_Speed
@@ -165,6 +163,9 @@ $End If
 
 If _DirExists("saves") = 0 Then MkDir "saves"
 
+Game_Settings_Load
+Game_Settings_Save
+
 ShowLoadingScreen "Initializing Chunks"
 Const MaxRenderDistance = 16, MaxChunks = (MaxRenderDistance * 2 + 1) ^ 2 + 1
 Dim Shared Chunks(1 To MaxChunks) As Chunk
@@ -196,8 +197,8 @@ Dim Shared ChunkLoadTime As _Unsigned Integer
 Player_Position.Y = GenerationChunkHeight / 2
 
 Dim Shared As _Unsigned Integer LFPS, GFPS, LFPSCount, GFPSCount: LFPS = 60
-FPSCounterTimer = _FreeTimer: On Timer(FPSCounterTimer, 1) GoSub FPSCounter: Timer(FPSCounterTimer) Off
-GameTickTimer = _FreeTimer: On Timer(GameTickTimer, 1 / 20) GoSub GameTick: Timer(GameTickTimer) Off
+FPSCounterTimer = _FreeTimer: On Timer(FPSCounterTimer, 1) GoSub FPSCounter: Timer(FPSCounterTimer) On
+GameTickTimer = _FreeTimer: On Timer(GameTickTimer, 1 / 20) GoSub GameTick: Timer(GameTickTimer) On
 
 LoadChunkDirection = 1
 LoadChunkLength = 1
@@ -322,9 +323,11 @@ $If GL Then
             If CloudsTexture < -1 Then GL_Generate_Texture CloudsTextureHandle, CloudsTexture
             __GL_Generate_Texture = 0
         End If
-        If allowGL = 0 Then Exit Sub
 
         _glViewport 0, 0, _Width - 1, _Height - 1
+
+        If allowGL = 0 Then Exit Sub
+
         _glEnable _GL_BLEND
         _glDisable _GL_MULTISAMPLE
         _glEnable _GL_DEPTH_TEST
