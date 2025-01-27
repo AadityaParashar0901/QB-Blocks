@@ -19,7 +19,8 @@ Type ChunkType
     As _Byte LoadedChunkData, LoadedRenderData, ShowRenderData
 End Type
 
-Screen _NewImage(960, 540, 32): _PrintMode _KeepBackground
+Screen _NewImage(960, 540, 32)
+Color _RGB32(255, 255, 255), _RGB32(0, 127)
 
 Do Until _ScreenExists: Loop
 Do While _Resize: Loop
@@ -86,6 +87,7 @@ CameraAngleCoSine.X = Cos(_D2R(CameraAngle.X)): CameraAngleCoSine.Y = Cos(_D2R(C
 Const Gravity = -20
 Dim Shared Time As Long, SkyColor As Long: Time = 7200 'Sunrise
 Dim As Long PSkyColor, NSkyColor
+Dim Shared As Single SkyColorRed, SkyColorGreen, SkyColorBlue
 Dim Shared SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
 '----------------------------------------------------------------
 Print "Generating Textures"
@@ -209,7 +211,10 @@ T$ = "Generating Chunks": TotalChunks = (2 * Min(4, RenderDistance) + 1) ^ 2
 For R = 0 To Min(4, RenderDistance): For X = ChunkX - R To ChunkX + R: For Z = ChunkZ - R To ChunkZ + R
             If X > ChunkX - R And X < ChunkX + R And Z > ChunkZ - R And Z < ChunkZ + R Then _Continue
             T = LoadChunkFile(X, Z)
-            If _Resize Then Screen _NewImage(_ResizeWidth, _ResizeHeight, 32): _PrintMode _KeepBackground
+            If _Resize Then
+                Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
+                Color _RGB32(255, 255, 255), _RGB32(0, 127)
+            End If
             Cls 1, 0
             Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             PrintString (_Width - FONTWIDTH * Len(T$)) / 2, (_Height - FONTHEIGHT) / 2, T$
@@ -232,8 +237,7 @@ Do
     _Limit 60
     LFPSCount = LFPSCount + 1
     If _WindowHasFocus = 0 Or isPaused = -1 Then
-        _MouseShow
-        isPaused = -1
+        _MouseShow: isPaused = -1
         Timer(GameTickTimer) Off
     Else
         _MouseHide
@@ -242,8 +246,7 @@ Do
 
     If _Resize Then
         Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
-        _PrintMode _KeepBackground
-        aspectRatio = _Width / _Height
+        Color _RGB32(255, 255, 255), _RGB32(0, 127)
     End If
 
     If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
@@ -256,28 +259,14 @@ Do
             InitialLoadChunkZ = 0
         End If
         ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-        For I = LBound(Chunk) To UBound(Chunk) 'Check for Chunks to UnLoad
-            If Chunk(I).LoadedChunkData = 0 Then _Continue
-            If InRange(-RenderDistance, Chunk(I).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(I).Z - ChunkZ, RenderDistance) = 0 Then
-                Chunk(I).X = 0
-                Chunk(I).Z = 0
-                Chunk(I).Count = 0
-                Chunk(I).TCount = 0
-                Chunk(I).ShowCount = 0
-                Chunk(I).ShowTCount = 0
-                Chunk(I).LoadedChunkData = 0
-                Chunk(I).LoadedRenderData = 0
-                LoadedChunks = LoadedChunks - 1
-                Exit For
-            End If
-        Next I
+        UnLoadChunks
+        '----------------------------------------------------------------
+        'Load Chunks
         For I = 0 To 63 'Check for 64 continous spiral tile chunks to Load
             ChunkLoadingStartTime = Timer(0.001)
             CL = 0 'if Chunk is loaded
             EXITFOR = 0
-            If ChunkInView(LoadChunkX, LoadChunkZ) Then
-                If InRange(-RenderDistance, LoadChunkX, RenderDistance) And InRange(-RenderDistance, LoadChunkZ, RenderDistance) Then CL = LoadChunkFile(ChunkX + LoadChunkX, ChunkZ + LoadChunkZ)
-            End If
+            If InRange(-RenderDistance, LoadChunkX, RenderDistance) And InRange(-RenderDistance, LoadChunkZ, RenderDistance) Then CL = LoadChunkFile(ChunkX + LoadChunkX, ChunkZ + LoadChunkZ)
             If CL Then
                 EXITFOR = -1
                 ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
@@ -303,6 +292,7 @@ Do
             End If
             If EXITFOR Then Exit For
         Next I
+        '----------------------------------------------------------------
     End If
 
     If isPaused Then 'Pause Menu
@@ -339,89 +329,12 @@ Do
         _MouseMove _Width / 2, _Height / 2
     Wend
 
-    RayPos = Camera: RayDir.X = CameraAngleSine.X * CameraAngleCoSine.Y: RayDir.Y = CameraAngleSine.Y: RayDir.Z = -CameraAngleCoSine.X * CameraAngleCoSine.Y: BlockSelected = 0
-    Vec3_FloatToInt RayPos, RayBlockPos
-    For I = 1 To 5
-        If InRange(1, RayPos.Y, ChunkHeight) Then
-            If isTransparent(BlockExists(RayPos.X, RayPos.Y, RayPos.Z)) = 0 Then BlockSelected = -1: Exit For
-        End If
-        Vec3_FloatToInt RayPos, RayPreviousBlockPos
-        RayPos.X = RayPos.X + RayDir.X
-        RayPos.Y = RayPos.Y + RayDir.Y
-        RayPos.Z = RayPos.Z + RayDir.Z
-    Next I
-    Vec3_FloatToInt RayPos, RayBlockPos
-    If BlockSelected Then
-        If _MouseButton(1) And InRange(1, RayBlockPos.Y, ChunkHeight) And Timer(0.01) - LastMouse1Time > 0.25 Then
-            SetBlockReloadChunk RayBlockPos.X, RayBlockPos.Y, RayBlockPos.Z, BLOCK_AIR
-            LastMouse1Time = Timer(0.01)
-        End If
-        If _MouseButton(2) And InRange(1, RayPreviousBlockPos.Y, ChunkHeight) And Timer(0.01) - LastMouse2Time > 0.25 Then If (Abs(Camera.X - RayPreviousBlockPos.X) > PlayerObesity Or Abs(Camera.Z - RayPreviousBlockPos.Z) > PlayerObesity) Or Abs(Camera.Y - RayPreviousBlockPos.Y) > PlayerHeight Then
-                SetBlockReloadChunk RayPreviousBlockPos.X, RayPreviousBlockPos.Y, RayPreviousBlockPos.Z, SELECTED_BLOCK
-                LastMouse2Time = Timer(0.01)
-            End If
-        End If
-    End If
-    SELECTED_BLOCK = Max(1, Min(TOTALTEXTURES, SELECTED_BLOCK + MW + _KeyDown(18432) - _KeyDown(20480) + _KeyDown(19200) - _KeyDown(19712)))
-    While _KeyDown(18432) Or _KeyDown(20480) Or _KeyDown(19200) Or _KeyDown(19712): _Limit 30: Wend
-
+    'Player Block Selection
+    '$Include:'SelectBlock.bas'
     '----------------------------------------------------------------
     'Player Movement
-    _KeyClear
-    If _KeyDown(87) Or _KeyDown(119) Then PlayerMove CameraAngle.X - 90, MoveSpeed / LFPS 'W
-    If _KeyDown(83) Or _KeyDown(115) Then PlayerMove CameraAngle.X + 90, MoveSpeed / LFPS 'S
-    If _KeyDown(65) Or _KeyDown(97) Then PlayerMove CameraAngle.X + 180, MoveSpeed / LFPS 'A
-    If _KeyDown(68) Or _KeyDown(100) Then PlayerMove CameraAngle.X, MoveSpeed / LFPS 'D
-    ZOOM = _KeyDown(67) Or _KeyDown(99)
-    If _KeyDown(27) Then 'Esc
-        While _KeyDown(27): Wend
-        isPaused = -1
-    End If
-    Time = IIF(_KeyDown(84) Or _KeyDown(116), Time + 20, Time)
-    If (_KeyDown(70) Or _KeyDown(102)) Then 'F
-        While _KeyDown(70) Or _KeyDown(102): _Limit 30: Wend
-        FLYMODE = Not FLYMODE
-    End If: FLYMODE = IIF(InRange(1, Camera.Y, ChunkHeight) = 0, -1, FLYMODE)
-    If _KeyDown(71) Or _KeyDown(103) Then 'G
-        While _KeyDown(71) Or _KeyDown(103): _Limit 30: Wend
-        FOG = IIF(FOG > 0, -1, 1)
-    End If
-    If _KeyDown(15616) Then
-        While _KeyDown(15616): _Limit 30: Wend
-        ShowDebugInfo = Not ShowDebugInfo
-    End If
-    If _KeyDown(100304) Then 'LShift
-        If FLYMODE Then
-            Camera.Y = Camera.Y - MoveSpeed / LFPS
-        Else
-            If BlockExists(Camera.X, Camera.Y - PlayerHeight, Camera.Z) = 0 Then Camera.Y = Camera.Y - MoveSpeed / LFPS
-        End If
-    End If
-    If _KeyDown(32) Then 'Space
-        If FLYMODE Then
-            Camera.Y = Camera.Y + MoveSpeed / LFPS
-        Else
-            If BlockExists(Camera.X, Camera.Y - PlayerHeight, Camera.Z) <> 0 Then PlayerVelocity.Y = 6
-        End If
-    End If
-    If _KeyDown(100306) Then 'LCtrl
-        If FLYMODE Then
-            MoveSpeed = 64
-        Else
-            If isBlockFluid(BlockExists(Camera.X, Camera.Y - 1, Camera.Z)) Then MoveSpeed = 3 Else MoveSpeed = 6
-        End If
-    Else
-        If isBlockFluid(BlockExists(Camera.X, Camera.Y - 1, Camera.Z)) Then MoveSpeed = 2 Else MoveSpeed = 4
-    End If
-    If FLYMODE = 0 Then
-        Camera.Y = Camera.Y + PlayerVelocity.Y / LFPS
-        If isTransparent(BlockExists(Camera.X, Camera.Y - PlayerHeight, Camera.Z)) = 0 Then
-            PlayerVelocity.Y = 0
-        Else
-            PlayerVelocity.Y = PlayerVelocity.Y + Gravity / LFPS
-        End If
-    End If
-    BlockOnCamera = BlockExists(Camera.X, Camera.Y, Camera.Z) 'For Calculating Fog Colour under water
+    '$Include:'Movement.bas'
+    '----------------------------------------------------------------
 Loop
 System
 
@@ -432,6 +345,8 @@ If LFPSCount Then LFPS = LFPSCount
 LFPSCount = 0
 Return
 
+'----------------------------------------------------------------
+'Game Tick
 GameTick:
 Time = Time + 1
 If Time >= 28800 Then Time = 0
@@ -440,8 +355,10 @@ MINUTEPER60 = ((Time \ 20) Mod 60) / 60
 PSkyColor = GetSkyColour(HOUR)
 NSkyColor = GetSkyColour(HOUR + 1)
 SkyColor = _RGB32(interpolate(_Red32(PSkyColor), _Red32(NSkyColor), MINUTEPER60), interpolate(_Green32(PSkyColor), _Green32(NSkyColor), MINUTEPER60), interpolate(_Blue32(PSkyColor), _Blue32(NSkyColor), MINUTEPER60))
+SkyColorRed = _Red32(SkyColor) / 255
+SkyColorGreen = _Green32(SkyColor) / 255
+SkyColorBlue = _Blue32(SkyColor) / 255
 Return
-
 Function GetSkyColour& (T As _Unsigned Integer)
     Select Case T Mod 24
         Case 0: GetSkyColour = _RGB32(0, 0, 0)
@@ -456,9 +373,21 @@ Function GetSkyColour& (T As _Unsigned Integer)
         Case 20 To 23: GetSkyColour = _RGB32(0, 0, 51)
     End Select
 End Function
+Function GameTime$
+    Static oldGT$, oldTime As Long
+    If oldTime <> Time \ 20 Then
+        T& = Time \ 20
+        H$ = _Trim$(Str$(T& \ 60))
+        M$ = _Trim$(Str$(T& Mod 60))
+        oldGT$ = String$(2 - Len(H$), 48) + _Trim$(Str$(T& \ 60)) + ":" + String$(2 - Len(M$), 48) + M$
+        oldTime = T&
+    End If
+    GameTime$ = oldGT$
+End Function
+'----------------------------------------------------------------
 
-Sub PlayerMove (Angle As Single, Speed As Single) Static
-    Dim As Single dX, dZ
+Sub PlayerMove (Angle As Single, Speed As Single)
+    Static As Single dX, dZ
     dX = Cos(_D2R(Angle)) * Speed
     dZ = Sin(_D2R(Angle)) * Speed
     If FLYMODE Then
@@ -489,7 +418,7 @@ $If GL Then
         _glEnable _GL_BLEND
         _glDisable _GL_MULTISAMPLE
         _glEnable _GL_DEPTH_TEST
-        _glClearColor _Red32(SkyColor) / 255, _Green32(SkyColor) / 255, _Blue32(SkyColor) / 255, 0
+        _glClearColor SkyColorRed, SkyColorGreen, SkyColorBlue, 0
         _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
         _glTranslatef 0, 0, -0.25
         _glRotatef -CameraAngle.Y, 1, 0, 0
@@ -530,7 +459,7 @@ $If GL Then
                 _glFogf _GL_FOG_DENSITY, 0.1
             Else
                 _glFogf _GL_FOG_START, 8 * (RenderDistance - 1)
-                _glFogfv _GL_FOG_COLOR, glVec4(0.75, 0.88, 1, 1)
+                _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed, SkyColorGreen, SkyColorBlue, 1)
                 _glFogf _GL_FOG_DENSITY, 0.1
             End If
         End If
@@ -615,31 +544,30 @@ $If GL Then
     glVec4%& = _Offset(VEC4()): End Function
 $End If
 
-Function GameTime$
-    Static oldGT$, oldTime As Long
-    If oldTime <> Time \ 20 Then
-        T& = Time \ 20
-        H$ = _Trim$(Str$(T& \ 60))
-        M$ = _Trim$(Str$(T& Mod 60))
-        oldGT$ = String$(2 - Len(H$), 48) + _Trim$(Str$(T& \ 60)) + ":" + String$(2 - Len(M$), 48) + M$
-        oldTime = T&
-    End If
-    GameTime$ = oldGT$
-End Function
-
+'----------------------------------------------------------------
+'Noise Functions
 '$Include:'noise.bas'
-
 Function new_fractal2 (CX, CZ, S, O, M)
     new_fractal2 = Abs(1.1 * fractal2(CX, CZ, S, O, M) - 0.1) * 0.9 + 0.1
 End Function
-
-Sub WipeChunk (FoundI As _Unsigned Integer)
-    Dim M As _MEM
-    M = _Mem(_Offset(ChunkData(0, 0, 0, FoundI)), ChunkDataSize)
-    _MemFill M, M.OFFSET, M.SIZE, 0 As LONG
-    _MemFree M
+'----------------------------------------------------------------
+Sub UnLoadChunks
+    For I = LBound(Chunk) To UBound(Chunk) 'Check for Chunks to UnLoad
+        If Chunk(I).LoadedChunkData = 0 Then _Continue
+        If InRange(-RenderDistance, Chunk(I).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(I).Z - ChunkZ, RenderDistance) = 0 Then
+            Chunk(I).X = 0
+            Chunk(I).Z = 0
+            Chunk(I).Count = 0
+            Chunk(I).TCount = 0
+            Chunk(I).ShowCount = 0
+            Chunk(I).ShowTCount = 0
+            Chunk(I).LoadedChunkData = 0
+            Chunk(I).LoadedRenderData = 0
+            LoadedChunks = LoadedChunks - 1
+            Exit For
+        End If
+    Next I
 End Sub
-
 Function ChunkLoader (FoundI, CX As Long, CZ As Long)
     Dim As Integer H, X, Y, Z, A, TreeHeight, XX, ZZ
     Dim As _Unsigned _Byte canPlaceBlock
@@ -760,157 +688,13 @@ Function ChunkReloader (FoundI, CX, CZ)
     Chunk(FoundI).ShowRenderData = -1
     ChunkReloader = -1
 End Function
-Sub SetBlockReloadChunk (X As Long, Y As Long, Z As Long, B As _Unsigned _Byte)
-    Dim As Integer __CX, __CZ, __CPX, __CPY, __CPZ
-    __CX = Int((X - 1) / 16): __CZ = Int((Z - 1) / 16)
-    __CPX = Int(X - __CX * 16): __CPY = Int(Y): __CPZ = Int(Z - __CZ * 16)
-    For I = LBound(Chunk) To UBound(Chunk)
-        If Chunk(I).X = __CX And Chunk(I).Z = __CZ And Chunk(I).LoadedChunkData Then FoundI = I: Exit For
-    Next I
-    If FoundI = 0 Then Exit Sub
-    ChunkData(__CPX, __CPY, __CPZ, FoundI) = B
-    If __CPX = 1 Then SetAnotherBlockReloadChunk __CX - 1, __CZ, 17, __CPY, __CPZ, B
-    If __CPX = 16 Then SetAnotherBlockReloadChunk __CX + 1, __CZ, 0, __CPY, __CPZ, B
-    If __CPZ = 1 Then SetAnotherBlockReloadChunk __CX, __CZ - 1, __CPX, __CPY, 17, B
-    If __CPZ = 16 Then SetAnotherBlockReloadChunk __CX, __CZ + 1, __CPX, __CPY, 0, B
-    Chunk(FoundI).MinimumHeight = Max(0, Min(Chunk(FoundI).MinimumHeight, __CPY - 1))
-    Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, __CPY)
-    Chunk(FoundI).LoadedRenderData = 0
-    Chunk(FoundI).Count = 0
-    Chunk(FoundI).TCount = 0
-    T = ChunkReloader(FoundI, __CX, __CZ)
-    SaveChunkFile __CX, __CZ
-End Sub
-Sub SetAnotherBlockReloadChunk (__CX As Integer, __CZ As Integer, __CPX As Integer, __CPY As Integer, __CPZ As Integer, B As _Unsigned _Byte)
-    For I = LBound(Chunk) To UBound(Chunk)
-        If Chunk(I).X = __CX And Chunk(I).Z = __CZ And Chunk(I).LoadedChunkData Then FoundI = I: Exit For
-    Next I
-    If FoundI = 0 Then Exit Sub
-    ChunkData(__CPX, __CPY, __CPZ, FoundI) = B
-    Chunk(FoundI).MinimumHeight = Max(0, Min(Chunk(FoundI).MinimumHeight, __CPY - 1))
-    Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, __CPY)
-    Chunk(FoundI).LoadedRenderData = 0
-    Chunk(FoundI).Count = 0
-    Chunk(FoundI).TCount = 0
-    T = ChunkReloader(FoundI, __CX, __CZ)
-    SaveChunkFile __CX, __CZ
-End Sub
-Function LoadChunkFile (CX, CZ)
-    For I = LBound(Chunk) To UBound(Chunk)
-        If Chunk(I).X = CX And Chunk(I).Z = CZ And Chunk(I).LoadedChunkData = -1 Then Exit Function
-        If Chunk(I).LoadedChunkData = 0 And FoundI = 0 Then FoundI = I
-    Next I
-    If FoundI = 0 Then Exit Function
-    FILEX = Int(CX / 16): FILEZ = Int(CZ / 16)
-    SEEKX = CX - FILEX * 16: SEEKZ = CZ - FILEZ * 16
-    SIZE& = Len(Chunk(FoundI)) + Len(TMPCHUNKDATA())
-    FILE$ = "saves/" + WORLDFOLDER$ + "/chunks/region_" + TS$(FILEX) + "_" + TS$(FILEZ) + ".chunkdata"
-    If _FileExists(FILE$) Then
-        F = FreeFile
-        Open FILE$ For Binary As #F
-        Seek #F, (SEEKX * 16 + SEEKZ) * SIZE& + 1
-        Get #F, , Chunk(FoundI)
-        If Chunk(FoundI).LoadedChunkData Then
-            Get #F, , TMPCHUNKDATA()
-            For X = 0 To 17: For Z = 0 To 17: For Y = 0 To ChunkHeight + 1: ChunkData(X, Y, Z, FoundI) = TMPCHUNKDATA(X, Y, Z): Next Y, Z, X
-            Close #F
-            LoadChunkFile = ChunkReloader(FoundI, CX, CZ)
-        Else
-            LoadChunkFile = ChunkLoader(FoundI, CX, CZ) And ChunkReloader(FoundI, CX, CZ)
-        End If
-    Else
-        LoadChunkFile = ChunkLoader(FoundI, CX, CZ) And ChunkReloader(FoundI, CX, CZ)
-    End If
-    LoadedChunks = LoadedChunks + 1
-End Function
-Sub SaveChunkFile (CX, CZ)
-    For I = LBound(Chunk) To UBound(Chunk)
-        If Chunk(I).X = CX And Chunk(I).Z = CZ And Chunk(I).LoadedChunkData Then FoundI = I: Exit For
-    Next I
-    If FoundI = 0 Then Exit Sub
-    F = FreeFile
-    FILEX = Int(CX / 16): FILEZ = Int(CZ / 16)
-    SEEKX = CX - FILEX * 16: SEEKZ = CZ - FILEZ * 16
-    SIZE& = Len(Chunk(FoundI)) + Len(TMPCHUNKDATA())
-    Open "saves/" + WORLDFOLDER$ + "/chunks/region_" + TS$(FILEX) + "_" + TS$(FILEZ) + ".chunkdata" For Binary As #F
-    Seek #F, (SEEKX * 16 + SEEKZ) * SIZE& + 1
-    Put #F, , Chunk(FoundI)
-    For X = 0 To 17: For Z = 0 To 17: For Y = 0 To ChunkHeight + 1: TMPCHUNKDATA(X, Y, Z) = ChunkData(X, Y, Z, FoundI): Next Y, Z, X
-    Put #F, , TMPCHUNKDATA()
-    Close #F
-End Sub
-Sub LoadPlayerData
-    Camera.X = 0.5: Camera.Y = GenerationChunkHeight: Camera.Z = 0.5
-    CameraAngle.X = 0: CameraAngle.Y = 0
-    If _FileExists("saves/" + WORLDFOLDER$ + "/world.dat") = 0 Then Exit Sub
-    F = FreeFile
-    Open "saves/" + WORLDFOLDER$ + "/world.dat" For Binary As #F
-    Get #F, , Seed
-    SeedRatio = Seed / 65536
-    Get #F, , WorldFlat
-    Get #F, , Camera
-    Get #F, , CameraAngle
-    Get #F, , Time
-    Close #F
-End Sub
-Sub SavePlayerData
-    Static SaveTime As Single
-    If Timer - SaveTime < 1 Then Exit Sub
-    SaveTime = Timer
-    F = FreeFile
-    Open "saves/" + WORLDFOLDER$ + "/world.dat" For Binary As #F
-    Put #F, , Seed
-    Put #F, , WorldFlat
-    Put #F, , Camera
-    Put #F, , CameraAngle
-    Put #F, , Time
-    Close #F
-End Sub
+'$Include:'LoadSaveChunks.bas'
 Function LoadImage& (FP$)
     If _FileExists(FP$) Then LoadImage& = _LoadImage(FP$, 32): Exit Function
     If _FileExists(FP$ + ".png") Then LoadImage& = _LoadImage(FP$ + ".png", 32): Exit Function
     If _FileExists(FP$ + ".jpg") Then LoadImage& = _LoadImage(FP$ + ".jpg", 32): Exit Function
     If _FileExists(FP$ + ".jpeg") Then LoadImage& = _LoadImage(FP$ + ".jpeg", 32): Exit Function
     Print "Cannot load "; FP$
-End Function
-Function TS$ (A)
-    TS$ = _Trim$(Str$(A))
-End Function
-Function isTransparent (B)
-    isTransparent = -(B = BLOCK_AIR Or B = BLOCK_WATER)
-End Function
-Function isBlockFluid (B)
-    isBlockFluid = -(B = BLOCK_WATER)
-End Function
-Function isNotBlock (B)
-    isNotBlock = -(B = BLOCK_AIR Or B = BLOCK_WATER)
-End Function
-Function Dis2 (X1, Y1, X2, Y2)
-    Dis2 = _Hypot(X1 - X2, Y1 - Y2) 'Got this _hypot() idea from bplus
-End Function
-Function Min (A, B)
-    Min = -A * (A < B) - B * (A >= B)
-End Function
-Function Max (A, B)
-    Max = -A * (A > B) - B * (A <= B)
-End Function
-Function InRange (A, B, C)
-    InRange = (A <= B) And (B <= C)
-End Function
-Function Clamp (A, B, C)
-    Clamp = B - (A - B) * (B < A) - (C - B) * (C < B)
-End Function
-Function ClampCycle (A, B, C)
-    ClampCycle = B - (C - B) * (B < A) - (A - B) * (C < B)
-End Function
-Function ClampCyclewithDifference (A, B, C)
-    ClampCyclewithDifference = B - C * (B < A) - A * (C < B)
-End Function
-Function IIF (A, B, C)
-    IIF = -B * (A <> 0) - C * (A = 0)
-End Function
-Function MouseInBox (X1, Y1, X2, Y2)
-    MouseInBox = InRange(X1, _MouseX, X2) And InRange(Y1, _MouseY, Y2)
 End Function
 Sub ChunkRelativeCameraPosition (__Camera As Vec3_Float, __CX As _Byte, __CZ As _Byte, __CPX As _Byte, __CPY As _Byte, __CPZ As _Byte)
     __CX = Int((__Camera.X - 1) / 16)
@@ -933,110 +717,17 @@ Function BlockExists (X, Y, Z) Static
     Next I
     BlockExists = IIF(FoundI, ChunkData(__CPX, __CPY, __CPZ, FoundI), 0)
 End Function
-Sub Settings (__LOAD)
-    If __LOAD And _FileExists("saves/settings.dat") = 0 Then Exit Sub
-    __F = FreeFile
-    Open "saves/settings.dat" For Binary As #__F
-    If __LOAD Then
-        Get #__F, , FOV
-        Get #__F, , RenderDistance
-        Get #__F, , FOG
-    Else
-        Put #__F, , FOV
-        Put #__F, , RenderDistance
-        Put #__F, , FOG
-    End If
-    Close #__F
-End Sub
-Sub Settings_Dialog
-    Do
-        Cls 1, 0: _Limit 60
-        If _Resize Then Screen _NewImage(_ResizeWidth, _ResizeHeight, 32): _PrintMode _KeepBackground
-        While _MouseInput: Wend
-        Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
-        Slider RenderDistance, _Width / 2, _Height * 0.4, "Render Distance", 1, MaxRenderDistance
-        TotalChunks = (2 * RenderDistance + 1) ^ 2
-        Slider FOV, _Width / 2, _Height * 0.5, "FOV", 70, 110
-        If Button(2, _Width / 10, _Height / 10, "") Then Settings False: Exit Do
-        _Display
-    Loop Until _KeyDown(27)
-    While _KeyDown(27): Wend
-End Sub
-Function Button (T~%%, X As Integer, Y As Integer, S$)
-    Select Case T~%%
-        Case 1:
-            If InRange(X - 200, _MouseX, X + 199) And InRange(Y - 20, _MouseY, Y + 19) Then
-                _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(4)
-                Button = _MouseButton(1)
-                While _MouseButton(1) Or _MouseInput: Wend
-            Else
-                _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(3)
-            End If
-            PrintString X - Len(S$) * FONTWIDTH / 2, Y - FONTHEIGHT / 2, S$
-        Case 9:
-            _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(5)
-            PrintString X - Len(S$) * FONTWIDTH / 2, Y - FONTHEIGHT / 2, S$
-        Case 2:
-            If InRange(X - 11, _MouseX, X + 11) And InRange(Y - 6, _MouseY, Y + 6) Then
-                _PutImage (X - 11, Y - 6)-(X + 11, Y + 6), GUI_ASSETS&(15)
-                Button = _MouseButton(1)
-                While _MouseButton(1) Or _MouseInput: Wend
-            Else
-                _PutImage (X - 11, Y - 6)-(X + 11, Y + 6), GUI_ASSETS&(14)
-            End If
-        Case 3:
-            If InRange(X - 11, _MouseX, X + 11) And InRange(Y - 6, _MouseY, Y + 6) Then
-                _PutImage (X - 11, Y - 6)-(X + 11, Y + 6), GUI_ASSETS&(17)
-                Button = _MouseButton(1)
-                While _MouseButton(1) Or _MouseInput: Wend
-            Else
-                _PutImage (X - 11, Y - 6)-(X + 11, Y + 6), GUI_ASSETS&(16)
-            End If
-    End Select
+Function isTransparent (B)
+    isTransparent = -(B = BLOCK_AIR Or B = BLOCK_WATER)
 End Function
-Sub InputBox (X As Integer, Y As Integer, S$, H$, isInFocus As _Unsigned Integer, KeyHit As _Unsigned _Byte)
-    _PutImage (X - 200, Y - 10)-(X + 199, Y + 9), GUI_ASSETS&(11)
-    If isInFocus And 2 * Timer(0.1) - Int(2 * Timer) > 0.5 Then C$ = "_"
-    T$ = Right$(S$, 400 \ FONTWIDTH)
-    PrintString X - 200, Y - FONTHEIGHT / 2, T$ + C$
-    If Len(T$) = 0 Then PrintString X - Len(H$) * FONTWIDTH / 2, Y - FONTHEIGHT / 2, H$
-    If isInFocus = 0 Then Exit Sub
-    Select Case KeyHit
-        Case 8: S$ = Left$(S$, Len(S$) - 1)
-        Case 32 To 126: S$ = S$ + Chr$(KeyHit)
-    End Select
-End Sub
-Sub CheckBox (X As Integer, Y As Integer, S$, C As _Unsigned _Byte)
-    If C Then
-        _PutImage (X - 10, Y - 10)-(X + 9, Y + 9), GUI_ASSETS&(19)
-        If InRange(X - 10, _MouseX, X + 9) And InRange(Y - 10, _MouseY, Y + 9) Then
-            _PutImage (X - 10, Y - 10)-(X + 9, Y + 9), GUI_ASSETS&(21)
-            While _MouseButton(1) Or _MouseInput: C = 0: Wend
-        End If
-    Else
-        _PutImage (X - 10, Y - 10)-(X + 9, Y + 9), GUI_ASSETS&(18)
-        If InRange(X - 10, _MouseX, X + 9) And InRange(Y - 10, _MouseY, Y + 9) Then
-            _PutImage (X - 10, Y - 10)-(X + 9, Y + 9), GUI_ASSETS&(20)
-            While _MouseButton(1) Or _MouseInput: C = -1: Wend
-        End If
-    End If
-    PrintString X + 18, Y - FONTHEIGHT / 2, S$
-End Sub
-Sub Slider (B As _Unsigned _Byte, X As Integer, Y As Integer, S$, A!, C!)
-    T! = (B - A!) / (C! - A!) * 384 - 192
-    If InRange(X - 200, _MouseX, X + 199) And InRange(Y - 20, _MouseY, Y + 19) Then
-        _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(11)
-        _PutImage (X + T - 8, Y - 20)-(X + T + 7, Y + 19), GUI_ASSETS&(13)
-        If _MouseButton(1) Then
-            B = A! + (_MouseX - X + 192) * (C! - A!) / 384
-        End If
-    Else
-        _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(10)
-        _PutImage (X + T - 8, Y - 20)-(X + T + 7, Y + 19), GUI_ASSETS&(12)
-    End If
-    T$ = S$ + ": " + _Trim$(Str$(B))
-    PrintString X - Len(T$) * FONTWIDTH / 2, Y - FONTHEIGHT / 2, T$
-End Sub
+Function isBlockFluid (B)
+    isBlockFluid = -(B = BLOCK_WATER)
+End Function
+Function isNotBlock (B)
+    isNotBlock = -(B = BLOCK_AIR Or B = BLOCK_WATER)
+End Function
+'$Include:'Misc.bas'
+'$Include:'UI.bas'
 Sub PrintString (X As Integer, Y As Integer, S$)
     Dim As _Unsigned Integer A, B, I
     For I = 1 To Len(S$)
