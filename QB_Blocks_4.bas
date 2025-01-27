@@ -1,3 +1,4 @@
+$Console
 '$Dynamic
 $Resize:On
 
@@ -47,6 +48,7 @@ Const NoiseSmoothness = 256
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
 '----------------------------------------------------------------
+'DO NOT CHANGE THIS PLEASE
 Const FONTWIDTH = 16, FONTHEIGHT = 16
 Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
@@ -55,10 +57,10 @@ Dim Shared TotalChunks As _Unsigned Integer
 Const MaxRenderDistance = 16 'Set to 24 if your PC has >= 16GB RAM
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
-Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _Byte
-Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType
-Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte
-Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime
+Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _Byte 'To copy one chunk data for loading and saving Chunks
+Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
+Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
+Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime, ChunkLoadTimeHistory(1 To 80) 'To calculate chunk loading lag
 Dim Shared As _Unsigned Long LoadedChunks
 Dim Shared CubeVertices(23) As Vec3_Int, CubeTexCoords(23) As Vec2_Float
 Restore CUBEMODEL
@@ -88,6 +90,7 @@ Dim Shared Time As Long, SkyColor As Long: Time = 7200 'Sunrise
 Dim As Long PSkyColor, NSkyColor
 Dim Shared As Single SkyColorRed, SkyColorGreen, SkyColorBlue
 Dim Shared SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
+Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1
 '----------------------------------------------------------------
 '$Include:'LoadAssets.bas'
 If _DirExists("saves") = 0 Then MkDir "saves"
@@ -188,10 +191,10 @@ Do
             InitialLoadChunkX = 0
             InitialLoadChunkZ = 0
         End If
-        ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
         UnLoadChunks
         '----------------------------------------------------------------
         'Load Chunks
+        ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
         For I = 0 To 63 'Check for 64 continous spiral tile chunks to Load
             ChunkLoadingStartTime = Timer(0.001)
             CL = 0 'if Chunk is loaded
@@ -200,6 +203,11 @@ Do
             If CL Then
                 EXITFOR = -1
                 ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
+                'Add to History for graph
+                For J = 1 To UBound(ChunkLoadTimeHistory) - 1
+                    Swap ChunkLoadTimeHistory(J), ChunkLoadTimeHistory(J + 1)
+                Next J
+                ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
                 MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
             End If
             E = 0: Select Case LoadChunkDirection
@@ -226,12 +234,13 @@ Do
     End If
 
     If isPaused Then 'Pause Menu
-        Cls 1, 0
+        Cls 0, 0
         While _MouseInput: Wend
         If _KeyDown(27) Then
             While _KeyDown(27): Wend
             isPaused = 0
         End If
+        ShowInfoData
         Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
         If Button(1, _Width / 2, _Height * 0.4, "Back to Game") Then isPaused = 0
         If Button(1, _Width / 2, _Height / 2, "Settings") Then Settings_Dialog
@@ -288,6 +297,12 @@ SkyColor = _RGB32(interpolate(_Red32(PSkyColor), _Red32(NSkyColor), MINUTEPER60)
 SkyColorRed = _Red32(SkyColor) / 255
 SkyColorGreen = _Green32(SkyColor) / 255
 SkyColorBlue = _Blue32(SkyColor) / 255
+LINEDESIGNINTEGER = _SHR(LINEDESIGNINTEGER, 1) - (LINEDESIGNINTEGER = 1) * 32768
+TMPMAXCHUNKLOADTIME = 0
+For __I = 1 To UBound(ChunkLoadTimeHistory)
+    TMPMAXCHUNKLOADTIME = Max(ChunkLoadTimeHistory(__I), TMPMAXCHUNKLOADTIME)
+Next __I
+MaxChunkLoadTime = TMPMAXCHUNKLOADTIME
 Return
 Function GetSkyColour& (T As _Unsigned Integer)
     Select Case T Mod 24
@@ -427,18 +442,9 @@ $If GL Then
         _glDisable _GL_BLEND
         _glFlush
         '----------------------------------------------------------------
-        If isPaused = 0 Then 'Info Data
-            Cls 2, 0
-            Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
-            If ShowDebugInfo Then
-                Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
-                Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
-                Print "Chunks Loaded:"; LoadedChunks
-                ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
-                Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
-                Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
-                Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
-            End If
+        If isPaused = 0 Then
+            Cls , 0
+            ShowInfoData
             _PutImage (_Width / 2, _Height / 2), Cross&
             _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
             _Display
@@ -446,6 +452,24 @@ $If GL Then
         GFPSCount = GFPSCount + 1
     End Sub
 
+    Sub ShowInfoData
+        Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
+        If ShowDebugInfo Then
+            Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
+            Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
+            Print "Chunks Loaded:"; LoadedChunks
+            ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
+            Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
+            Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
+            Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
+            Line (_Width - 329, 7)-(_Width - 7, 73), _RGB32(255), B , LINEDESIGNINTEGER
+            Line (_Width - 328, 8)-(_Width - 8, 72), _RGB32(0, 127), BF
+            Line (_Width - 328, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), _RGB32(255)
+            For I = 1 To UBound(ChunkLoadTimeHistory) - 1
+                Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
+            Next I
+        End If
+    End Sub
     Sub DrawOutlineBox
         _glBegin _GL_LINES
         For I = 0 To 23
@@ -482,6 +506,7 @@ Function new_fractal2 (CX, CZ, S, O, M)
 End Function
 '----------------------------------------------------------------
 Sub UnLoadChunks
+    ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
     For I = LBound(Chunk) To UBound(Chunk) 'Check for Chunks to UnLoad
         If Chunk(I).LoadedChunkData = 0 Then _Continue
         If InRange(-RenderDistance, Chunk(I).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(I).Z - ChunkZ, RenderDistance) = 0 Then
