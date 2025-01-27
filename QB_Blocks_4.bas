@@ -34,7 +34,7 @@ _Title "QB Blocks 4"
 Randomize Timer
 Const True = -1, False = 0
 Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
-$Let GL = 0
+$Let GL = -1
 
 Dim Shared As _Bit FLYMODE, ZOOM, ShowDebugInfo, isPaused
 Dim Shared As _Byte FOV, FOG, RenderDistance
@@ -161,7 +161,7 @@ For I = 1 To 20
 Next I
 _Source 0: _Dest 0
 $If GL Then
-        __GL_Generate_Texture = -1: While __GL_Generate_Texture = -1: Wend
+    __GL_Generate_Texture = -1: While __GL_Generate_Texture = -1: Wend
 $End If
 
 If _DirExists("saves") = 0 Then MkDir "saves"
@@ -478,16 +478,16 @@ Sub PlayerMove (Angle As Single, Speed As Single) Static
 End Sub
 
 $If GL Then
-        Sub _GL
+    Sub _GL
         Dim As _Byte CX, CZ, CPX, CPY, CPZ
         Shared allowGL, __GL_Generate_Texture, __GL_Generate_Sun_Texture, __GL_Generate_Chunks
         Static As Long TextureHandle, SunTextureHandle, MoonTextureHandle, CloudTextureHandle
         If __GL_Generate_Texture Then
-        Generate_GL_Textures Texture, TextureHandle
-        Generate_GL_Textures SunTexture, SunTextureHandle
-        Generate_GL_Textures MoonTexture, MoonTextureHandle
-        Generate_GL_Textures CloudTexture, CloudTextureHandle
-        __GL_Generate_Texture = 0
+            Generate_GL_Textures Texture, TextureHandle
+            Generate_GL_Textures SunTexture, SunTextureHandle
+            Generate_GL_Textures MoonTexture, MoonTextureHandle
+            Generate_GL_Textures CloudTexture, CloudTextureHandle
+            __GL_Generate_Texture = 0
         End If
 
         If allowGL = 0 Then Exit Sub
@@ -519,33 +519,33 @@ $If GL Then
         X = 0: Y = ChunkHeight * 4.5: Z = 0: S = ChunkHeight * 8
         _glRotatef Time / 80 - 180, 1, 0, 0
         _glBegin _GL_QUADS: For I = 8 To 11
-        _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
-        _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
+            _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
+            _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         _glBindTexture _GL_TEXTURE_2D, MoonTextureHandle
         X = 0: Y = ChunkHeight * 4.5: Z = 0: S = ChunkHeight * 4
         _glRotatef 180, 1, 0, 0
         _glBegin _GL_QUADS: For I = 8 To 11
-        _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
-        _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
+            _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
+            _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         _glRotatef -Time / 80, 1, 0, 0
         '----------------------------------------------------------------
         _glTranslatef -Camera.X, 0, -Camera.Z
         _glBindTexture _GL_TEXTURE_2D, TextureHandle
         If FOG > 0 Then
-        _glEnable _GL_FOG
-        _glFogi _GL_FOG_MODE, _GL_LINEAR
-        _glFogf _GL_FOG_END, 16 * (RenderDistance - 1)
-        If BlockOnCamera = BLOCK_WATER Then
-        _glFogf _GL_FOG_START, 8
-        _glFogfv _GL_FOG_COLOR, glVec4(0.25, 0.12, 1, 0.5)
-        _glFogf _GL_FOG_DENSITY, 0.1
-        Else
-        _glFogf _GL_FOG_START, 8 * (RenderDistance - 1)
-        _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed / 255, SkyColorGreen / 255, SkyColorBlue / 255, 1)
-        _glFogf _GL_FOG_DENSITY, 0.1
-        End If
+            _glEnable _GL_FOG
+            _glFogi _GL_FOG_MODE, _GL_LINEAR
+            _glFogf _GL_FOG_END, 16 * (RenderDistance - 1)
+            If BlockOnCamera = BLOCK_WATER Then
+                _glFogf _GL_FOG_START, 8
+                _glFogfv _GL_FOG_COLOR, glVec4(0.25, 0.12, 1, 0.5)
+                _glFogf _GL_FOG_DENSITY, 0.1
+            Else
+                _glFogf _GL_FOG_START, 8 * (RenderDistance - 1)
+                _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed / 255, SkyColorGreen / 255, SkyColorBlue / 255, 1)
+                _glFogf _GL_FOG_DENSITY, 0.1
+            End If
         End If
         '----------------------------------------------------------------
         _glEnableClientState _GL_VERTEX_ARRAY
@@ -575,18 +575,18 @@ $If GL Then
         _glLightfv _GL_LIGHT2, _GL_POSITION, glVec4(0, ChunkHeight, 0, 1)
 
         For I = LBound(Chunk) - 1 To MAXCHUNKS - 1
-        If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowCount = 0 Then _Continue
-        _glVertexPointer 3, _GL_FLOAT, 0, Chunk(I + 1).VerticesOffset
-        _glTexCoordPointer 2, _GL_FLOAT, 0, Chunk(I + 1).TexCoordsOffset
-        _glNormalPointer _GL_BYTE, 0, Chunk(I + 1).NormalsOffset
-        _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowCount
+            If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowCount = 0 Then _Continue
+            _glVertexPointer 3, _GL_FLOAT, 0, Chunk(I + 1).VerticesOffset
+            _glTexCoordPointer 2, _GL_FLOAT, 0, Chunk(I + 1).TexCoordsOffset
+            _glNormalPointer _GL_BYTE, 0, Chunk(I + 1).NormalsOffset
+            _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowCount
         Next I
         For I = LBound(Chunk) - 1 To MAXCHUNKS - 1
-        If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowTCount = 0 Then _Continue
-        _glVertexPointer 3, _GL_FLOAT, 0, Chunk(I + 1).TransparentVerticesOffset
-        _glTexCoordPointer 2, _GL_FLOAT, 0, Chunk(I + 1).TransparentTexCoordsOffset
-        _glNormalPointer _GL_BYTE, 0, Chunk(I + 1).TransparentNormalsOffset
-        _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowTCount
+            If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowTCount = 0 Then _Continue
+            _glVertexPointer 3, _GL_FLOAT, 0, Chunk(I + 1).TransparentVerticesOffset
+            _glTexCoordPointer 2, _GL_FLOAT, 0, Chunk(I + 1).TransparentTexCoordsOffset
+            _glNormalPointer _GL_BYTE, 0, Chunk(I + 1).TransparentNormalsOffset
+            _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowTCount
         Next I
         If BlockSelected Then DrawOutlineBox
         _glDisable _GL_LIGHT2
@@ -603,8 +603,8 @@ $If GL Then
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
         X = 0: Y = ChunkHeight * 0.8: Z = Time / 40: S = ChunkHeight * 64
         _glBegin _GL_QUADS: For I = 8 To 11
-        _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
-        _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
+            _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
+            _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         '----------------------------------------------------------------
         If FOG Then _glDisable _GL_FOG
@@ -614,33 +614,33 @@ $If GL Then
         _glFlush
         '----------------------------------------------------------------
         If isPaused = 0 Then 'Info Data
-        Cls 2, 0
-        Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
-        If ShowDebugInfo Then
-        Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
-        Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
-        Print "Chunks Loaded:"; LoadedChunks
-        ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
-        Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
-        Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
-        Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
-        End If
-        _PutImage (_Width / 2, _Height / 2), Cross&
-        _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
-        _Display
+            Cls 2, 0
+            Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
+            If ShowDebugInfo Then
+                Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
+                Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
+                Print "Chunks Loaded:"; LoadedChunks
+                ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
+                Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
+                Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
+                Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
+            End If
+            _PutImage (_Width / 2, _Height / 2), Cross&
+            _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
+            _Display
         End If
         GFPSCount = GFPSCount + 1
-        End Sub
+    End Sub
 
-        Sub DrawOutlineBox
+    Sub DrawOutlineBox
         _glBegin _GL_LINES
         For I = 0 To 23
-        _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
+            _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
         Next I
         _glEnd
-        End Sub
+    End Sub
 
-        Sub Generate_GL_Textures (__T As Long, __TH As Long)
+    Sub Generate_GL_Textures (__T As Long, __TH As Long)
         Static M As _MEM
         _glGenTextures 1, _Offset(__TH)
         _glBindTexture _GL_TEXTURE_2D, __TH
@@ -649,15 +649,15 @@ $If GL Then
         _MemFree M
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
-        End Sub
+    End Sub
 
-        Function glVec4%& (X!, Y!, Z!, W!) Static
+    Function glVec4%& (X!, Y!, Z!, W!) Static
         If firstRun` = 0 Then
-        Dim VEC4(3) As Single
-        firstRun` = -1
+            Dim VEC4(3) As Single
+            firstRun` = -1
         End If
         VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
-        glVec4%& = _Offset(VEC4()): End Function
+    glVec4%& = _Offset(VEC4()): End Function
 $End If
 
 Function GameTime$
