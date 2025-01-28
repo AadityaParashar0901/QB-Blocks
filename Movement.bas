@@ -12,7 +12,8 @@ Time = IIF(_KeyDown(84) Or _KeyDown(116), Time + 20, Time)
 If (_KeyDown(70) Or _KeyDown(102)) Then 'F
     While _KeyDown(70) Or _KeyDown(102): _Limit 30: Wend
     FLYMODE = Not FLYMODE
-End If: FLYMODE = IIF(InRange(1, Camera.Y, ChunkHeight) = 0, -1, FLYMODE)
+End If
+FLYMODE = IIF(Camera.Y <= 0, -1, FLYMODE)
 If _KeyDown(71) Or _KeyDown(103) Then 'G
     While _KeyDown(71) Or _KeyDown(103): _Limit 30: Wend
     FOG = IIF(FOG > 0, -1, 1)

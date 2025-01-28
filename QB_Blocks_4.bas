@@ -40,8 +40,8 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
-Const ChunkHeight = 256
-Const GenerationChunkHeight = ChunkHeight
+Const ChunkHeight = 64
+Const GenerationChunkHeight = 64
 Const WaterLevel = GenerationChunkHeight / 4
 Const NoiseSmoothness = 256
 
@@ -54,7 +54,8 @@ Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 16 'Set to 24 if your PC has >= 16GB RAM
+Const MaxRenderDistance = 32 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
+'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
 Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _Byte 'To copy one chunk data for loading and saving Chunks
@@ -423,21 +424,21 @@ $If GL Then
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(I * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowTCount
         Next I
-        If BlockSelected Then DrawOutlineBox
+        If FOG > 0 Then _glDisable _GL_FOG
         _glDisableClientState _GL_VERTEX_ARRAY
         _glDisableClientState _GL_TEXTURE_COORD_ARRAY
         '----------------------------------------------------------------
         'Draw Clouds
         _glTranslatef Camera.X, 0, Camera.Z
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
-        X = 0: Y = ChunkHeight * 0.8: Z = Time / 40: S = ChunkHeight * 16
+        X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 16
         _glBegin _GL_QUADS: For I = 8 To 11
             _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
             _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         '----------------------------------------------------------------
-        If FOG > 0 Then _glDisable _GL_FOG
         _glDisable _GL_TEXTURE_2D
+        If BlockSelected Then DrawOutlineBox
         _glDisable _GL_DEPTH_TEST
         _glDisable _GL_BLEND
         _glFlush
@@ -471,6 +472,7 @@ $If GL Then
         End If
     End Sub
     Sub DrawOutlineBox
+        _glTranslatef -Camera.X, 0, -Camera.Z
         _glBegin _GL_LINES
         For I = 0 To 23
             _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
@@ -506,20 +508,22 @@ Function new_fractal2 (CX, CZ, S, O, M)
 End Function
 '----------------------------------------------------------------
 Sub UnLoadChunks
+    Static CurrentOffset As _Unsigned Integer
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-    For I = LBound(Chunk) To UBound(Chunk) 'Check for Chunks to UnLoad
-        If Chunk(I).LoadedChunkData = 0 Then _Continue
-        If InRange(-RenderDistance, Chunk(I).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(I).Z - ChunkZ, RenderDistance) = 0 Then
-            Chunk(I).X = 0
-            Chunk(I).Z = 0
-            Chunk(I).Count = 0
-            Chunk(I).TCount = 0
-            Chunk(I).ShowCount = 0
-            Chunk(I).ShowTCount = 0
-            Chunk(I).LoadedChunkData = 0
-            Chunk(I).LoadedRenderData = 0
+    For I = 0 To 63 'Check for Chunks to UnLoad
+        CurrentOffset = ClampCycle(LBound(Chunk), CurrentOffset + 1, UBound(Chunk))
+        If Chunk(CurrentOffset).LoadedChunkData = 0 Then _Continue
+        If InRange(-RenderDistance, Chunk(CurrentOffset).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(CurrentOffset).Z - ChunkZ, RenderDistance) = 0 Then
+            Chunk(CurrentOffset).X = 0
+            Chunk(CurrentOffset).Z = 0
+            Chunk(CurrentOffset).Count = 0
+            Chunk(CurrentOffset).TCount = 0
+            Chunk(CurrentOffset).ShowCount = 0
+            Chunk(CurrentOffset).ShowTCount = 0
+            Chunk(CurrentOffset).LoadedChunkData = 0
+            Chunk(CurrentOffset).LoadedRenderData = 0
             LoadedChunks = LoadedChunks - 1
-            Exit For
+            Exit Sub
         End If
     Next I
 End Sub
@@ -537,7 +541,7 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
         For X = -3 To 20: For Z = -3 To 20
                 PX = CX * 16
                 PZ = CZ * 16
-                H = GenerationChunkHeight * fractal2(PX + X, PZ + Z, NoiseSmoothness, 0, 0)
+                H = GenerationChunkHeight * fractal2(PX + X, PZ + Z, NoiseSmoothness, 7, 0)
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
                     Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
