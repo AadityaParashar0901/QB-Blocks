@@ -40,7 +40,7 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
-Const ChunkHeight = 64
+Const ChunkHeight = 256
 Const GenerationChunkHeight = 64
 Const WaterLevel = GenerationChunkHeight / 4
 Const NoiseSmoothness = 256
@@ -54,7 +54,7 @@ Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 32 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
+Const MaxRenderDistance = 16 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
@@ -431,7 +431,7 @@ $If GL Then
         'Draw Clouds
         _glTranslatef Camera.X, 0, Camera.Z
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
-        X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 16
+        X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 64
         _glBegin _GL_QUADS: For I = 8 To 11
             _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
             _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
@@ -487,7 +487,7 @@ $If GL Then
         M = _MemImage(__T)
         _glTexImage2D _GL_TEXTURE_2D, 0, _GL_RGBA, _Width(__T), _Height(__T), 0, _GL_BGRA_EXT, _GL_UNSIGNED_BYTE, M.OFFSET
         _MemFree M
-        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
+        _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
     End Sub
 
