@@ -41,9 +41,10 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
 Const ChunkHeight = 256
-Const GenerationChunkHeight = 256
+Const GenerationChunkHeight = 64
 Const WaterLevel = GenerationChunkHeight / 4
-Const NoiseSmoothness = 512
+Const NoiseSmoothness = 256
+Const Noise3D = 0 '0 OR 1 ONLY
 
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
@@ -183,7 +184,7 @@ Do
         Color _RGB32(255, 255, 255), _RGB32(0, 127)
     End If
 
-    If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
+    If (LFPSCount Mod (ChunkLoadingSpeed * (1 + Noise3D))) = 0 Then 'Cause 3D Noise is slower to generate
         If Int(Camera.X / 16) <> ChunkX Or Int(Camera.Z / 16) <> ChunkZ Then 'Reset the Spiral Variables
             LoadChunkLength = 0
             LoadChunkDirection = 1
@@ -453,24 +454,6 @@ $If GL Then
         GFPSCount = GFPSCount + 1
     End Sub
 
-    Sub ShowInfoData
-        Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
-        If ShowDebugInfo Then
-            Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
-            Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
-            Print "Chunks Loaded:"; LoadedChunks
-            ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
-            Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
-            Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
-            Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
-            Line (_Width - 329, 7)-(_Width - 7, 73), _RGB32(255), B , LINEDESIGNINTEGER
-            Line (_Width - 328, 8)-(_Width - 8, 72), _RGB32(0, 127), BF
-            Line (_Width - 328, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), _RGB32(255)
-            For I = 1 To UBound(ChunkLoadTimeHistory) - 1
-                Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
-            Next I
-        End If
-    End Sub
     Sub DrawOutlineBox
         _glTranslatef -Camera.X, 0, -Camera.Z
         _glBegin _GL_LINES
@@ -500,6 +483,25 @@ $If GL Then
     glVec4%& = _Offset(VEC4()): End Function
 $End If
 
+Sub ShowInfoData
+    Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
+    If ShowDebugInfo Then
+        Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
+        Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
+        Print "Chunks Loaded:"; LoadedChunks
+        ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
+        Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
+        Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
+        Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
+        Line (_Width - 329, 7)-(_Width - 7, 73), _RGB32(255), B , LINEDESIGNINTEGER
+        Line (_Width - 328, 8)-(_Width - 8, 72), _RGB32(0, 127), BF
+        Line (_Width - 328, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), _RGB32(255)
+        For I = 1 To UBound(ChunkLoadTimeHistory) - 1
+            Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
+        Next I
+    End If
+End Sub
+
 '----------------------------------------------------------------
 'Noise Functions
 '$Include:'noise.bas'
@@ -523,7 +525,6 @@ Sub UnLoadChunks
             Chunk(CurrentOffset).LoadedChunkData = 0
             Chunk(CurrentOffset).LoadedRenderData = 0
             LoadedChunks = LoadedChunks - 1
-            Exit Sub
         End If
     Next I
 End Sub
@@ -544,15 +545,25 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                 H = GenerationChunkHeight * fractal2(PX + X, PZ + Z, NoiseSmoothness, 7, 0)
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
-                    Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
+                    Chunk(FoundI).MinimumHeight = IIF(Noise3D, 1, Min(Chunk(FoundI).MinimumHeight, H - 1))
                     Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, H)
-                    For Y = 1 To Max(H, WaterLevel) - 1
-                        ChunkData(X, Y, Z, FoundI) = BLOCK_DIRT
+                    ChunkData(X, 1, Z, FoundI) = BLOCK_STONE
+                    For Y = 2 To Max(H, WaterLevel) - 1
+                        If Noise3D Then
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT)
+                        Else
+                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
+                        End If
                     Next Y
-                    ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
+                    If Noise3D Then
+                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
+                    Else
+                        ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
+                    End If
+                    If ChunkData(X, Y, Z, FoundI) = BLOCK_AIR Then _Continue 'No Flying Tree
                 End If
                 '----------------------------------------------------------------
-                If H > WaterLevel And InRange(0.8, fractal2(PX + X, PZ + Z, 2, 7, 1), 0.81) Then
+                If H > WaterLevel And InRange(80, Int(100 * fractal2(PX + X, PZ + Z, 2, 7, 1)), 81) Then
                     TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
                     If canPlaceBlock Then
                         For Y = H To H + TreeHeight
