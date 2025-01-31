@@ -41,9 +41,9 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
 Const ChunkHeight = 256
-Const GenerationChunkHeight = 64
+Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight / 4
-Const NoiseSmoothness = 256
+Const NoiseSmoothness = 512
 
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
