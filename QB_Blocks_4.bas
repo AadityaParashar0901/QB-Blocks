@@ -41,9 +41,9 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
 Const ChunkHeight = 256
-Const GenerationChunkHeight = 64
+Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight / 4
-Const NoiseSmoothness = 256
+Const NoiseSmoothness = 128
 Const Noise3D = 0 '0 OR 1 ONLY
 
 Const PlayerHeight = 1.75
@@ -55,7 +55,7 @@ Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 16 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
+Const MaxRenderDistance = 8 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
@@ -92,7 +92,7 @@ Dim Shared Time As Long, SkyColor As Long: Time = 7200 'Sunrise
 Dim As Long PSkyColor, NSkyColor
 Dim Shared As Single SkyColorRed, SkyColorGreen, SkyColorBlue
 Dim Shared SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
-Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1
+Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1 'Graph Border
 '----------------------------------------------------------------
 '$Include:'LoadAssets.bas'
 If _DirExists("saves") = 0 Then MkDir "saves"
@@ -197,7 +197,7 @@ Do
         '----------------------------------------------------------------
         'Load Chunks
         ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-        For I = 0 To 63 'Check for 64 continous spiral tile chunks to Load
+        For I = 0 To 63 'Check for 63 continous spiral tile chunks to Load
             ChunkLoadingStartTime = Timer(0.001)
             CL = 0 'if Chunk is loaded
             EXITFOR = 0
@@ -256,7 +256,6 @@ Do
         _Display
         _Continue
     End If
-
     '----------------------------------------------------------------
     'Player Camera Angle
     MW = 0: While _MouseInput
@@ -542,46 +541,61 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
         For X = -3 To 20: For Z = -3 To 20
                 PX = CX * 16
                 PZ = CZ * 16
-                H = GenerationChunkHeight * fractal2(PX + X, PZ + Z, NoiseSmoothness, 7, 0)
+                H = getHeight(PX + X, PZ + Z)
+                Biome = getBiome(PX + X, PZ + Z)
+                Select Case Biome
+                    Case 1: BIOME_SURFACE_BLOCK = BLOCK_STONE
+                        BIOME_UNDERGROUND_BLOCK = BLOCK_STONE
+                    Case 2: BIOME_SURFACE_BLOCK = BLOCK_SAND
+                        BIOME_UNDERGROUND_BLOCK = BLOCK_SANDSTONE
+                    Case 3: BIOME_SURFACE_BLOCK = BLOCK_DIRT
+                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
+                    Case 4: BIOME_SURFACE_BLOCK = BLOCK_GRASS
+                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
+                    Case 5: BIOME_SURFACE_BLOCK = BLOCK_SNOW
+                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
+                End Select
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
                     Chunk(FoundI).MinimumHeight = IIF(Noise3D, 1, Min(Chunk(FoundI).MinimumHeight, H - 1))
                     Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, H)
                     ChunkData(X, 1, Z, FoundI) = BLOCK_STONE
                     For Y = 2 To Max(H, WaterLevel) - 1
+                        UNDERWATER = H < WaterLevel And Y >= H
                         If Noise3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT)
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
                         Else
-                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
+                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                         End If
                     Next Y
                     If Noise3D Then
-                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
+                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     Else
-                        ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
+                        ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     End If
                     If ChunkData(X, Y, Z, FoundI) = BLOCK_AIR Then _Continue 'No Flying Tree
                 End If
                 '----------------------------------------------------------------
-                If H > WaterLevel And InRange(80, Int(100 * fractal2(PX + X, PZ + Z, 2, 7, 1)), 81) Then
-                    TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
-                    If canPlaceBlock Then
-                        For Y = H To H + TreeHeight
-                            ChunkData(X, Y, Z, FoundI) = BLOCK_OAK_LOG
-                        Next Y
-                    End If
-                    A = 4
-                    For Y = H + TreeHeight To H + TreeHeight + 4
-                        A = A - 1
-                        For XX = X - A To X + A: For ZZ = Z - A To Z + A
-                                If InRange(0, XX, 17) And InRange(0, ZZ, 17) Then
-                                    ChunkData(XX, Y, ZZ, FoundI) = BLOCK_OAK_LEAVES
-                                    Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, Y)
-                                    Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, Y)
-                                End If
-                        Next ZZ, XX
+                If Biome < 4 Then _Continue
+                If H <= WaterLevel Then _Continue
+                If Int(1000 * fractal2(PX + X, PZ + Z, 1, 0, 1)) <> 800 Then _Continue
+                TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
+                If canPlaceBlock Then
+                    For Y = H To H + TreeHeight
+                        ChunkData(X, Y, Z, FoundI) = BLOCK_OAK_LOG
                     Next Y
                 End If
+                A = 4
+                For Y = H + TreeHeight To H + TreeHeight + 4
+                    A = A - 1
+                    For XX = X - A To X + A: For ZZ = Z - A To Z + A
+                            If InRange(0, XX, 17) And InRange(0, ZZ, 17) Then
+                                ChunkData(XX, Y, ZZ, FoundI) = BLOCK_OAK_LEAVES
+                                Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, Y)
+                                Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, Y)
+                            End If
+                    Next ZZ, XX
+                Next Y
         Next Z, X
     Else
         Chunk(FoundI).MinimumHeight = 1
@@ -658,6 +672,7 @@ Function ChunkReloader (FoundI, CX, CZ)
     Chunk(FoundI).ShowRenderData = -1
     ChunkReloader = -1
 End Function
+'$Include:'terrain.bas'
 '$Include:'LoadSaveChunks.bas'
 Function LoadImage& (FP$)
     If _FileExists(FP$) Then LoadImage& = _LoadImage(FP$, 32): Exit Function
@@ -685,7 +700,8 @@ Function BlockExists (X, Y, Z) Static
             Exit For
         End If
     Next I
-    BlockExists = IIF(FoundI, ChunkData(__CPX, __CPY, __CPZ, FoundI), 0)
+    If FoundI = 0 Then Exit Function
+    BlockExists = ChunkData(__CPX, __CPY, __CPZ, FoundI)
 End Function
 Function isTransparent (B)
     isTransparent = -(B = BLOCK_AIR Or B = BLOCK_WATER)
