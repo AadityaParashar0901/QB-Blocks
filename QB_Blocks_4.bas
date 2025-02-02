@@ -4,6 +4,7 @@ $Resize:On
 
 Type Vec2_Float: As Single X, Y: End Type
 Type Vec2_Int: As Integer X, Y: End Type
+Type Vec3_Byte: As _Byte X, Y, Z: End Type
 Type Vec3_Float: As Single X, Y, Z: End Type
 Type Vec3_Int: As Integer X, Y, Z: End Type
 
@@ -29,7 +30,7 @@ _Title "QB Blocks 4"
 
 Randomize Timer
 Const True = -1, False = 0
-Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
+Const ChunkLoadingSpeed = 4 '1(Min) -> Fastest, 60(Max) -> Slowest
 $Let GL = -1
 
 Dim Shared As _Bit FLYMODE, ZOOM, ShowDebugInfo, isPaused
@@ -79,6 +80,7 @@ MAXTVERTICES = MAXCHUNKS * ChunkTSectionSize
 Dim Shared ChunkDataSize As _Unsigned Long: ChunkDataSize = Len(TMPCHUNKDATA()) 'To Clear Old ChunkData
 Dim Shared Vertices(1 To MAXVERTICES) As Vec3_Int, TexCoords(1 To MAXVERTICES) As Vec2_Float
 Dim Shared TVertices(1 To MAXTVERTICES) As Vec3_Int, TTexCoords(1 To MAXTVERTICES) As Vec2_Float
+Dim Shared VertexColors(1 To MAXVERTICES) As Vec3_Byte, TVertexColors(1 To MAXVERTICES) As Vec3_Byte
 
 Dim Shared Camera As Vec3_Float, CameraAngle As Vec2_Float, PlayerVelocity As Vec3_Float, BlockOnCamera As _Unsigned _Byte
 Dim Shared RayPos As Vec3_Float, RayDir As Vec3_Float, RayBlockPos As Vec3_Int, RayPreviousBlockPos As Vec3_Int, BlockSelected As _Unsigned _Byte
@@ -411,14 +413,17 @@ $If GL Then
             End If
         End If
         '----------------------------------------------------------------
+        _glCullFace _GL_TRUE
         _glEnableClientState _GL_VERTEX_ARRAY
         _glEnableClientState _GL_TEXTURE_COORD_ARRAY
+        _glEnableClientState _GL_COLOR_ARRAY
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Opaque Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowCount = 0 Then _Continue
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J * ChunkSectionSize + 1))
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TexCoords(J * ChunkSectionSize + 1))
+            _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(VertexColors(J * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(J + 1).ShowCount
             _glPopMatrix
         Next I
@@ -428,20 +433,23 @@ $If GL Then
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(J * ChunkSectionSize + 1))
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(J * ChunkSectionSize + 1))
+            _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(TVertexColors(J * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(I).ShowTCount
             _glPopMatrix
         Next I
         If FOG > 0 Then _glDisable _GL_FOG
         _glDisableClientState _GL_VERTEX_ARRAY
         _glDisableClientState _GL_TEXTURE_COORD_ARRAY
+        _glDisableClientState _GL_COLOR_ARRAY
+        _glCullFace _GL_FALSE
         '----------------------------------------------------------------
         'Draw Clouds
         _glTranslatef Camera.X, 0, Camera.Z
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
         X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 64
         _glBegin _GL_QUADS: For I = 8 To 11
-            _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
-            _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
+        _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
+        _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         '----------------------------------------------------------------
         _glDisable _GL_TEXTURE_2D
@@ -451,25 +459,25 @@ $If GL Then
         _glFlush
         '----------------------------------------------------------------
         If isPaused = 0 Then
-            Cls , 0
-            ShowInfoData
-            _PutImage (_Width / 2, _Height / 2), Cross&
-            _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
-            _Display
+        Cls , 0
+        ShowInfoData
+        _PutImage (_Width / 2, _Height / 2), Cross&
+        _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
+        _Display
         End If
         GFPSCount = GFPSCount + 1
-    End Sub
+        End Sub
 
-    Sub DrawOutlineBox
+        Sub DrawOutlineBox
         _glTranslatef -Camera.X, 0, -Camera.Z
         _glBegin _GL_LINES
         For I = 0 To 23
-            _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
+        _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
         Next I
         _glEnd
-    End Sub
+        End Sub
 
-    Sub Generate_GL_Textures (__T As Long, __TH As Long)
+        Sub Generate_GL_Textures (__T As Long, __TH As Long)
         Static M As _MEM
         _glGenTextures 1, _Offset(__TH)
         _glBindTexture _GL_TEXTURE_2D, __TH
@@ -478,15 +486,15 @@ $If GL Then
         _MemFree M
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
-    End Sub
+        End Sub
 
-    Function glVec4%& (X!, Y!, Z!, W!) Static
+        Function glVec4%& (X!, Y!, Z!, W!) Static
         If firstRun` = 0 Then
-            Dim VEC4(3) As Single
-            firstRun` = -1
+        Dim VEC4(3) As Single
+        firstRun` = -1
         End If
         VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
-    glVec4%& = _Offset(VEC4()): End Function
+        glVec4%& = _Offset(VEC4()): End Function
 $End If
 
 Sub ShowInfoData
@@ -570,9 +578,9 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
                         If Noise3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
                         Else
-                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
+                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                         End If
                     Next Y
                     If Noise3D Then
@@ -618,6 +626,17 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
     Chunk(FoundI).LoadedChunkData = -1
     ChunkLoader = -1
 End Function
+Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, FoundI As _Unsigned Integer)
+    Dim As _Byte dX, dY, dZ
+    Dim As _Byte side1, side2, corner
+    dX = _SHL(CubeVertices(vertexIndex).X, 1) - 1
+    dY = _SHL(CubeVertices(vertexIndex).Y, 1) - 1
+    dZ = _SHL(CubeVertices(vertexIndex).Z, 1) - 1
+    corner = Sgn(ChunkData(X + dX, Y + dY, Z + dZ, FoundI))
+    side1 = Sgn(ChunkData(X + dX, Y + dY, Z, FoundI))
+    side2 = Sgn(ChunkData(X, Y + dY, Z + dZ, FoundI))
+    AmbientOcclusion = 255 - 51 * (side1 + side2 + corner)
+End Function
 Function ChunkReloader (FoundI, CX, CZ)
     If FoundI = 0 Then Exit Function
     Chunk(FoundI).LoadedRenderData = -1
@@ -628,14 +647,14 @@ Function ChunkReloader (FoundI, CX, CZ)
     LV = (FoundI - 1) * ChunkSectionSize
     LTV = (FoundI - 1) * ChunkSectionSize
     Chunk(FoundI).MinimumHeight = Max(1, Chunk(FoundI).MinimumHeight)
-    PX = CX * 16
-    PZ = CZ * 16
+    PX = _SHL(CX, 4)
+    PZ = _SHL(CZ, 4)
     For X = 1 To 16
         For Z = 1 To 16
             For Y = Chunk(FoundI).MinimumHeight To Chunk(FoundI).MaximumHeight
                 Block = ChunkData(X, Y, Z, FoundI)
                 If Block = BLOCK_AIR Then _Continue
-                Visibility = isTransparent(ChunkData(X + 1, Y, Z, FoundI)) + 2 * isTransparent(ChunkData(X - 1, Y, Z, FoundI)) + 4 * isTransparent(ChunkData(X, Y + 1, Z, FoundI)) + 8 * isTransparent(ChunkData(X, Y - 1, Z, FoundI)) + 16 * isTransparent(ChunkData(X, Y, Z + 1, FoundI)) + 32 * isTransparent(ChunkData(X, Y, Z - 1, FoundI))
+                Visibility = isTransparent(ChunkData(X + 1, Y, Z, FoundI)) + _SHL(isTransparent(ChunkData(X - 1, Y, Z, FoundI)), 1) + _SHL(isTransparent(ChunkData(X, Y + 1, Z, FoundI)), 2) + _SHL(isTransparent(ChunkData(X, Y - 1, Z, FoundI)), 3) + _SHL(isTransparent(ChunkData(X, Y, Z + 1, FoundI)), 4) + _SHL(isTransparent(ChunkData(X, Y, Z - 1, FoundI)), 5)
                 If ChunkData(X, Y + 1, Z, FoundI) = BLOCK_WATER Then
                     If Block = BLOCK_WATER Then
                         Visibility = 0
@@ -647,6 +666,7 @@ Function ChunkReloader (FoundI, CX, CZ)
                 For YY = Y + 1 To Chunk(FoundI).MaximumHeight
                     If ChunkData(X, YY, Z, FoundI) Then Light = 5: Exit For
                 Next YY
+
                 If isTransparent(Block) Then
                     For I = 0 To 23
                         FACE%% = _SHL(1, _SHR(I, 2))
@@ -658,6 +678,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         TVertices(LTV).Z = CubeVertices(I).Z + Z
                         TTexCoords(LTV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
                         TTexCoords(LTV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
+                        TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI)
+                        TVertexColors(LTV).Y = TVertexColors(LTV).X
+                        TVertexColors(LTV).Z = TVertexColors(LTV).X
                         Chunk(FoundI).TCount = Chunk(FoundI).TCount + 1
                     Next I
                 Else
@@ -670,6 +693,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         Vertices(LV).Z = CubeVertices(I).Z + Z
                         TexCoords(LV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
                         TexCoords(LV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
+                        VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI)
+                        VertexColors(LV).Y = VertexColors(LV).X
+                        VertexColors(LV).Z = VertexColors(LV).Y
                         Chunk(FoundI).Count = Chunk(FoundI).Count + 1
                     Next I
                 End If
