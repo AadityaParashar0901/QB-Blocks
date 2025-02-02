@@ -413,21 +413,23 @@ $If GL Then
         '----------------------------------------------------------------
         _glEnableClientState _GL_VERTEX_ARRAY
         _glEnableClientState _GL_TEXTURE_COORD_ARRAY
-        For I = LBound(Chunk) - 1 To MAXCHUNKS - 1 'Display Opaque Blocks in Chunks
-            If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowCount = 0 Then _Continue
-            _glTranslatef Chunk(I + 1).X * 16, 0, Chunk(I + 1).Z * 16
-            _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(I * ChunkSectionSize + 1))
-            _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TexCoords(I * ChunkSectionSize + 1))
-            _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowCount
-            _glTranslatef -Chunk(I + 1).X * 16, 0, -Chunk(I + 1).Z * 16
+        J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Opaque Blocks in Chunks
+            J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowCount = 0 Then _Continue
+            _glPushMatrix
+            _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
+            _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J * ChunkSectionSize + 1))
+            _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TexCoords(J * ChunkSectionSize + 1))
+            _glDrawArrays _GL_QUADS, 0, Chunk(J + 1).ShowCount
+            _glPopMatrix
         Next I
-        For I = LBound(Chunk) - 1 To MAXCHUNKS - 1 'Display Translucent Blocks in Chunks
-            If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowTCount = 0 Then _Continue
-            _glTranslatef Chunk(I + 1).X * 16, 0, Chunk(I + 1).Z * 16
-            _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(I * ChunkSectionSize + 1))
-            _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(I * ChunkSectionSize + 1))
-            _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowTCount
-            _glTranslatef -Chunk(I + 1).X * 16, 0, -Chunk(I + 1).Z * 16
+        J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Translucent Blocks in Chunks
+            J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowTCount = 0 Then _Continue
+            _glPushMatrix
+            _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
+            _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(J * ChunkSectionSize + 1))
+            _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(J * ChunkSectionSize + 1))
+            _glDrawArrays _GL_QUADS, 0, Chunk(I).ShowTCount
+            _glPopMatrix
         Next I
         If FOG > 0 Then _glDisable _GL_FOG
         _glDisableClientState _GL_VERTEX_ARRAY
