@@ -55,7 +55,7 @@ Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 8 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
+Const MaxRenderDistance = 16 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
