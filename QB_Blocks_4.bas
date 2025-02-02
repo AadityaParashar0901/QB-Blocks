@@ -77,7 +77,7 @@ MAXVERTICES = MAXCHUNKS * ChunkSectionSize
 MAXTVERTICES = MAXCHUNKS * ChunkTSectionSize
 Dim Shared ChunkDataSize As _Unsigned Long: ChunkDataSize = Len(TMPCHUNKDATA()) 'To Clear Old ChunkData
 Dim Shared Vertices(1 To MAXVERTICES) As Vec3_Int, TexCoords(1 To MAXVERTICES) As Vec2_Float
-Dim Shared TVertices(1 To MAXTVERTICES) As Vec3_Float, TTexCoords(1 To MAXTVERTICES) As Vec2_Float
+Dim Shared TVertices(1 To MAXTVERTICES) As Vec3_Int, TTexCoords(1 To MAXTVERTICES) As Vec2_Float
 
 Dim Shared Camera As Vec3_Float, CameraAngle As Vec2_Float, PlayerVelocity As Vec3_Float, BlockOnCamera As _Unsigned _Byte
 Dim Shared RayPos As Vec3_Float, RayDir As Vec3_Float, RayBlockPos As Vec3_Int, RayPreviousBlockPos As Vec3_Int, BlockSelected As _Unsigned _Byte
@@ -414,15 +414,19 @@ $If GL Then
         _glEnableClientState _GL_TEXTURE_COORD_ARRAY
         For I = LBound(Chunk) - 1 To MAXCHUNKS - 1 'Display Opaque Blocks in Chunks
             If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowCount = 0 Then _Continue
+            _glTranslatef Chunk(I + 1).X * 16, 0, Chunk(I + 1).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(I * ChunkSectionSize + 1))
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TexCoords(I * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowCount
+            _glTranslatef -Chunk(I + 1).X * 16, 0, -Chunk(I + 1).Z * 16
         Next I
         For I = LBound(Chunk) - 1 To MAXCHUNKS - 1 'Display Translucent Blocks in Chunks
             If Chunk(I + 1).ShowRenderData = 0 Or Chunk(I + 1).ShowTCount = 0 Then _Continue
-            _glVertexPointer 3, _GL_FLOAT, 0, _Offset(TVertices(I * ChunkSectionSize + 1))
+            _glTranslatef Chunk(I + 1).X * 16, 0, Chunk(I + 1).Z * 16
+            _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(I * ChunkSectionSize + 1))
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(I * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(I + 1).ShowTCount
+            _glTranslatef -Chunk(I + 1).X * 16, 0, -Chunk(I + 1).Z * 16
         Next I
         If FOG > 0 Then _glDisable _GL_FOG
         _glDisableClientState _GL_VERTEX_ARRAY
@@ -578,7 +582,7 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                 '----------------------------------------------------------------
                 If Biome < 4 Then _Continue
                 If H <= WaterLevel Then _Continue
-                If Int(1000 * fractal2(PX + X, PZ + Z, 1, 0, 1)) <> 800 Then _Continue
+                If Int(1000 * fractal2(PX + X, PZ + Z, 7, 0, 1)) <> 800 Then _Continue
                 TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
                 If canPlaceBlock Then
                     For Y = H To H + TreeHeight
@@ -646,9 +650,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         If (FACE%% And Visibility) = 0 Then _Continue
                         If Block = BLOCK_WATER Then If FACE%% <> 4 Then _Continue
                         LTV = LTV + 1
-                        TVertices(LTV).X = CubeVertices(I).X + PX + X
-                        TVertices(LTV).Y = CubeVertices(I).Y + Y + 0.125 * (Block = BLOCK_WATER)
-                        TVertices(LTV).Z = CubeVertices(I).Z + PZ + Z
+                        TVertices(LTV).X = CubeVertices(I).X + X
+                        TVertices(LTV).Y = CubeVertices(I).Y + Y
+                        TVertices(LTV).Z = CubeVertices(I).Z + Z
                         TTexCoords(LTV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
                         TTexCoords(LTV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
                         Chunk(FoundI).TCount = Chunk(FoundI).TCount + 1
@@ -658,9 +662,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         FACE%% = _SHL(1, _SHR(I, 2))
                         If (FACE%% And Visibility) = 0 Then _Continue
                         LV = LV + 1
-                        Vertices(LV).X = CubeVertices(I).X + PX + X
+                        Vertices(LV).X = CubeVertices(I).X + X
                         Vertices(LV).Y = CubeVertices(I).Y + Y
-                        Vertices(LV).Z = CubeVertices(I).Z + PZ + Z
+                        Vertices(LV).Z = CubeVertices(I).Z + Z
                         TexCoords(LV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
                         TexCoords(LV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
                         Chunk(FoundI).Count = Chunk(FoundI).Count + 1
