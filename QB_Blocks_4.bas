@@ -55,7 +55,8 @@ Const ChunkSectionSize = 192 * ChunkHeight
 Const ChunkTSectionSize = 256 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 16 'Set to 32 if your PC has >= 16GB RAM, when ChunkHeight is 256
+Const MaxRenderDistance = 16 'Setting to 32 will require you to have > 13.5 GiB Memory
+'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 30 * 112 KiB
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
@@ -567,13 +568,13 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
                         If Noise3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
                         Else
                             ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                         End If
                     Next Y
                     If Noise3D Then
-                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness / 16, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
+                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     Else
                         ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     End If
