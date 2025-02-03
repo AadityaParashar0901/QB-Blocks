@@ -567,7 +567,7 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                         BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
                     Case 4: BIOME_SURFACE_BLOCK = BLOCK_GRASS
                         BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
-                    Case 5: BIOME_SURFACE_BLOCK = BLOCK_SNOW
+                    Case Else: BIOME_SURFACE_BLOCK = BLOCK_SNOW
                         BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
                 End Select
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
@@ -578,13 +578,13 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
                         If Noise3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
                         Else
                             ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                         End If
                     Next Y
                     If Noise3D Then
-                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.1 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
+                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     Else
                         ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     End If
