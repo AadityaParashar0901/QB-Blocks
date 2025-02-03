@@ -30,7 +30,7 @@ _Title "QB Blocks 4"
 
 Randomize Timer
 Const True = -1, False = 0
-Const ChunkLoadingSpeed = 4 '1(Min) -> Fastest, 60(Max) -> Slowest
+Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 $Let GL = -1
 
 Dim Shared As _Bit FLYMODE, ZOOM, ShowDebugInfo, isPaused
@@ -448,8 +448,8 @@ $If GL Then
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
         X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 64
         _glBegin _GL_QUADS: For I = 8 To 11
-        _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
-        _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
+            _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
+            _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
         Next I: _glEnd
         '----------------------------------------------------------------
         _glDisable _GL_TEXTURE_2D
@@ -459,25 +459,25 @@ $If GL Then
         _glFlush
         '----------------------------------------------------------------
         If isPaused = 0 Then
-        Cls , 0
-        ShowInfoData
-        _PutImage (_Width / 2, _Height / 2), Cross&
-        _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
-        _Display
+            Cls , 0
+            ShowInfoData
+            _PutImage (_Width / 2, _Height / 2), Cross&
+            _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
+            _Display
         End If
         GFPSCount = GFPSCount + 1
-        End Sub
+    End Sub
 
-        Sub DrawOutlineBox
+    Sub DrawOutlineBox
         _glTranslatef -Camera.X, 0, -Camera.Z
         _glBegin _GL_LINES
         For I = 0 To 23
-        _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
+            _glVertex3f RayBlockPos.X + CubeVertices(I).X, RayBlockPos.Y + CubeVertices(I).Y, RayBlockPos.Z + CubeVertices(I).Z
         Next I
         _glEnd
-        End Sub
+    End Sub
 
-        Sub Generate_GL_Textures (__T As Long, __TH As Long)
+    Sub Generate_GL_Textures (__T As Long, __TH As Long)
         Static M As _MEM
         _glGenTextures 1, _Offset(__TH)
         _glBindTexture _GL_TEXTURE_2D, __TH
@@ -486,15 +486,15 @@ $If GL Then
         _MemFree M
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR
         _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
-        End Sub
+    End Sub
 
-        Function glVec4%& (X!, Y!, Z!, W!) Static
+    Function glVec4%& (X!, Y!, Z!, W!) Static
         If firstRun` = 0 Then
-        Dim VEC4(3) As Single
-        firstRun` = -1
+            Dim VEC4(3) As Single
+            firstRun` = -1
         End If
         VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
-        glVec4%& = _Offset(VEC4()): End Function
+    glVec4%& = _Offset(VEC4()): End Function
 $End If
 
 Sub ShowInfoData
@@ -626,7 +626,7 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
     Chunk(FoundI).LoadedChunkData = -1
     ChunkLoader = -1
 End Function
-Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, FoundI As _Unsigned Integer)
+Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, FoundI As _Unsigned Integer, CurrentLight As _Unsigned _Byte)
     Dim As _Byte dX, dY, dZ
     Dim As _Byte side1, side2, corner
     dX = _SHL(CubeVertices(vertexIndex).X, 1) - 1
@@ -635,7 +635,7 @@ Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex 
     corner = Sgn(ChunkData(X + dX, Y + dY, Z + dZ, FoundI))
     side1 = Sgn(ChunkData(X + dX, Y + dY, Z, FoundI))
     side2 = Sgn(ChunkData(X, Y + dY, Z + dZ, FoundI))
-    AmbientOcclusion = 255 - 51 * (side1 + side2 + corner)
+    AmbientOcclusion = 255 - 17 * (side1 + side2 + corner + CurrentLight)
 End Function
 Function ChunkReloader (FoundI, CX, CZ)
     If FoundI = 0 Then Exit Function
@@ -676,9 +676,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         TVertices(LTV).X = CubeVertices(I).X + X
                         TVertices(LTV).Y = CubeVertices(I).Y + Y
                         TVertices(LTV).Z = CubeVertices(I).Z + Z
-                        TTexCoords(LTV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
+                        TTexCoords(LTV).X = CubeTexCoords(I).X
                         TTexCoords(LTV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
-                        TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI)
+                        TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
                         TVertexColors(LTV).Y = TVertexColors(LTV).X
                         TVertexColors(LTV).Z = TVertexColors(LTV).X
                         Chunk(FoundI).TCount = Chunk(FoundI).TCount + 1
@@ -691,9 +691,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         Vertices(LV).X = CubeVertices(I).X + X
                         Vertices(LV).Y = CubeVertices(I).Y + Y
                         Vertices(LV).Z = CubeVertices(I).Z + Z
-                        TexCoords(LV).X = (CubeTexCoords(I).X + Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8)) / 20
+                        TexCoords(LV).X = CubeTexCoords(I).X
                         TexCoords(LV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
-                        VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI)
+                        VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
                         VertexColors(LV).Y = VertexColors(LV).X
                         VertexColors(LV).Z = VertexColors(LV).Y
                         Chunk(FoundI).Count = Chunk(FoundI).Count + 1

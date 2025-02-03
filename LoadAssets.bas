@@ -16,7 +16,7 @@ Const TEXTURESIZE = 16
 Const IMAGEHEIGHT = 6 * TOTALTEXTURES
 
 Dim Shared As Long Texture, SunTexture, MoonTexture, CloudTexture, Cross, FontImage
-Texture = _NewImage(TEXTURESIZE * 20, TEXTURESIZE * IMAGEHEIGHT, 32)
+Texture = _NewImage(TEXTURESIZE, TEXTURESIZE * IMAGEHEIGHT, 32)
 FontImage = LoadImage("assets/font/ascii.png")
 GUI_ASSETS&(GUI_ASSETS_ID) = _LoadImage("assets/gui/background_loading.png", 32)
 _PutImage (0, 0)-(_Width - 1, _Height - 1), GUI_ASSETS&(1)
@@ -55,14 +55,6 @@ Cross = _LoadImage("assets/gui/cross.png", 32)
 SunTexture = _LoadImage("assets/environment/sun.png", 32)
 MoonTexture = _LoadImage("assets/environment/moon.png", 32)
 CloudTexture = _LoadImage("assets/environment/clouds.png", 32)
-_Source Texture: _Dest Texture
-For I = 1 To 20
-    For X = I * TEXTURESIZE To _Width
-        For Y = 0 To _Height - 1
-            If _Alpha32(Point(X, Y)) = 255 Then PSet (X, Y), _RGBA32(0, 0, 0, 17)
-    Next Y, X
-Next I
-_Source 0: _Dest 0
 $If GL Then
     __GL_Generate_Texture = -1: While __GL_Generate_Texture = -1: Wend
 $End If
