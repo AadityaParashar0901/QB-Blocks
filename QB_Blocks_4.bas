@@ -30,7 +30,6 @@ _Title "QB Blocks 4"
 
 Randomize Timer
 Const True = -1, False = 0
-Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 $Let GL = -1
 
 Dim Shared As _Bit FLYMODE, ZOOM, ShowDebugInfo, isPaused
@@ -41,11 +40,13 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
+Const ChunkLoadingSpeed = 2 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight / 4
 Const NoiseSmoothness = 128
-Const Noise3D = 0 '0 OR 1 ONLY
+$Let NOISE3D = 0
+'Noise 3D can be 0 OR 1 ONLY
 
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
@@ -187,7 +188,7 @@ Do
         Color _RGB32(255, 255, 255), _RGB32(0, 127)
     End If
 
-    If (LFPSCount Mod (ChunkLoadingSpeed * (1 + Noise3D))) = 0 Then 'Cause 3D Noise is slower to generate
+    If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then 'Because 3D Noise is slower to generate
         If Int(Camera.X / 16) <> ChunkX Or Int(Camera.Z / 16) <> ChunkZ Then 'Reset the Spiral Variables
             LoadChunkLength = 0
             LoadChunkDirection = 1
@@ -281,58 +282,16 @@ Do
 Loop
 System
 
+'FPS Counter
 FPSCounter:
 If GFPSCount Then GFPS = GFPSCount
 GFPSCount = 0
 If LFPSCount Then LFPS = LFPSCount
 LFPSCount = 0
 Return
-
 '----------------------------------------------------------------
 'Game Tick
-GameTick:
-Time = Time + 1
-If Time >= 28800 Then Time = 0
-HOUR = Time \ 1200
-MINUTEPER60 = ((Time \ 20) Mod 60) / 60
-PSkyColor = GetSkyColour(HOUR)
-NSkyColor = GetSkyColour(HOUR + 1)
-SkyColor = _RGB32(interpolate(_Red32(PSkyColor), _Red32(NSkyColor), MINUTEPER60), interpolate(_Green32(PSkyColor), _Green32(NSkyColor), MINUTEPER60), interpolate(_Blue32(PSkyColor), _Blue32(NSkyColor), MINUTEPER60))
-SkyColorRed = _Red32(SkyColor) / 255
-SkyColorGreen = _Green32(SkyColor) / 255
-SkyColorBlue = _Blue32(SkyColor) / 255
-LINEDESIGNINTEGER = _SHR(LINEDESIGNINTEGER, 1) - (LINEDESIGNINTEGER = 1) * 32768
-TMPMAXCHUNKLOADTIME = 0
-For __I = 1 To UBound(ChunkLoadTimeHistory)
-    TMPMAXCHUNKLOADTIME = Max(ChunkLoadTimeHistory(__I), TMPMAXCHUNKLOADTIME)
-Next __I
-MaxChunkLoadTime = TMPMAXCHUNKLOADTIME
-Return
-Function GetSkyColour& (T As _Unsigned Integer)
-    Select Case T Mod 24
-        Case 0: GetSkyColour = _RGB32(0, 0, 0)
-        Case 1 To 4: GetSkyColour = _RGB32(0, 0, 51)
-        Case 5: GetSkyColour = _RGB32(255, 153, 102)
-        Case 6: GetSkyColour = _RGB32(255, 204, 153)
-        Case 7, 8: GetSkyColour = _RGB32(102, 204, 255)
-        Case 9 To 14: GetSkyColour = _RGB32(51, 153, 255)
-        Case 15 To 17: GetSkyColour = _RGB32(255, 153, 102)
-        Case 18: GetSkyColour = _RGB32(255, 102, 51)
-        Case 19: GetSkyColour = _RGB32(102, 51, 153)
-        Case 20 To 23: GetSkyColour = _RGB32(0, 0, 51)
-    End Select
-End Function
-Function GameTime$
-    Static oldGT$, oldTime As Long
-    If oldTime <> Time \ 20 Then
-        T& = Time \ 20
-        H$ = _Trim$(Str$(T& \ 60))
-        M$ = _Trim$(Str$(T& Mod 60))
-        oldGT$ = String$(2 - Len(H$), 48) + _Trim$(Str$(T& \ 60)) + ":" + String$(2 - Len(M$), 48) + M$
-        oldTime = T&
-    End If
-    GameTime$ = oldGT$
-End Function
+'$Include:'GameTick.bas'
 '----------------------------------------------------------------
 
 Sub PlayerMove (Angle As Single, Speed As Single)
@@ -515,18 +474,19 @@ Sub ShowInfoData
         Next I
     End If
 End Sub
-
 '----------------------------------------------------------------
+
 'Noise Functions
 '$Include:'noise.bas'
 Function new_fractal2 (CX, CZ, S, O, M)
     new_fractal2 = Abs(1.1 * fractal2(CX, CZ, S, O, M) - 0.1) * 0.9 + 0.1
 End Function
 '----------------------------------------------------------------
+
 Sub UnLoadChunks
     Static CurrentOffset As _Unsigned Integer
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-    For I = 0 To 63 'Check for Chunks to UnLoad
+    For I = 0 To 63 'Check for 63 Chunks to UnLoad in 1 call to reduce lag
         CurrentOffset = ClampCycle(LBound(Chunk), CurrentOffset + 1, UBound(Chunk))
         If Chunk(CurrentOffset).LoadedChunkData = 0 Then _Continue
         If InRange(-RenderDistance, Chunk(CurrentOffset).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(CurrentOffset).Z - ChunkZ, RenderDistance) = 0 Then
@@ -572,22 +532,26 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                 End Select
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
-                    Chunk(FoundI).MinimumHeight = IIF(Noise3D, 1, Min(Chunk(FoundI).MinimumHeight, H - 1))
+                    $If NOISE3D Then
+                            Chunk(FoundI).MinimumHeight = 1
+                    $Else
+                        Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
+                    $End If
                     Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, H)
                     ChunkData(X, 1, Z, FoundI) = BLOCK_STONE
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
-                        If Noise3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
-                        Else
+                        $If NOISE3D Then
+                                If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
+                        $Else
                             ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
-                        End If
+                        $End If
                     Next Y
-                    If Noise3D Then
-                        If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
-                    Else
+                    $If NOISE3D Then
+                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
+                    $Else
                         ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
-                    End If
+                    $End If
                     If ChunkData(X, Y, Z, FoundI) = BLOCK_AIR Then _Continue 'No Flying Tree
                 End If
                 '----------------------------------------------------------------
