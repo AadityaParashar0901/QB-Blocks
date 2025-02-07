@@ -43,7 +43,7 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 Const ChunkLoadingSpeed = 2 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
-Const WaterLevel = GenerationChunkHeight / 4
+Const WaterLevel = GenerationChunkHeight \ 3
 Const NoiseSmoothness = 128
 $Let NOISE3D = 0
 'Noise 3D can be 0 OR 1 ONLY
