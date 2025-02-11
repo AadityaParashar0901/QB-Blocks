@@ -1,5 +1,5 @@
 Function getHeight (X&, Z&)
-    getHeight = GenerationChunkHeight * (continentalness(X&, Z&) + erosion(X&, Z&)) / 2
+    getHeight = GenerationChunkHeight * (continentalness(X&, Z&) + erosion(X&, Z&) + peaks_valleys(X&, Z&)) / 3
 End Function
 Function getBiome% (X As Long, Z As Long)
     getBiome = 1 + 5 * fractal2(X, Z, NoiseSmoothness * 4, 0, 6)
