@@ -1,4 +1,3 @@
-$Console
 '$Dynamic
 $Resize:On
 
@@ -53,12 +52,12 @@ Const PlayerObesity = 0.5
 '----------------------------------------------------------------
 'DO NOT CHANGE THIS PLEASE
 Const FONTWIDTH = 16, FONTHEIGHT = 16
-Const ChunkSectionSize = 192 * ChunkHeight
-Const ChunkTSectionSize = 256 * ChunkHeight
+Const ChunkSectionSize = 32 * ChunkHeight
+Const ChunkTSectionSize = 32 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 16 'Setting to 32 will require you to have > 13.5 GiB Memory
-'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 30 * 112 KiB
+Const MaxRenderDistance = 32 'Setting to 64 will require you to have roughly > 4 GiB Memory
+'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 272 KiB
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
@@ -188,7 +187,7 @@ Do
         Color _RGB32(255, 255, 255), _RGB32(0, 127)
     End If
 
-    If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then 'Because 3D Noise is slower to generate
+    If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
         If Int(Camera.X / 16) <> ChunkX Or Int(Camera.Z / 16) <> ChunkZ Then 'Reset the Spiral Variables
             LoadChunkLength = 0
             LoadChunkDirection = 1
