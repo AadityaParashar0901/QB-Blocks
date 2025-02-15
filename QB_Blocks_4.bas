@@ -1,3 +1,4 @@
+$Console
 '$Dynamic
 $Resize:On
 
@@ -39,7 +40,7 @@ Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
 
 '----------------------------------------------------------------
 'Things You Can Change to compare performance
-Const ChunkLoadingSpeed = 2 '1(Min) -> Fastest, 60(Max) -> Slowest
+Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
@@ -82,6 +83,7 @@ Dim Shared Vertices(1 To MAXVERTICES) As Vec3_Int, TexCoords(1 To MAXVERTICES) A
 Dim Shared TVertices(1 To MAXTVERTICES) As Vec3_Int, TTexCoords(1 To MAXTVERTICES) As Vec2_Float
 Dim Shared VertexColors(1 To MAXVERTICES) As Vec3_Byte, TVertexColors(1 To MAXVERTICES) As Vec3_Byte
 
+Dim Shared As Vec2_Float CameraDirection
 Dim Shared Camera As Vec3_Float, CameraAngle As Vec2_Float, PlayerVelocity As Vec3_Float, BlockOnCamera As _Unsigned _Byte
 Dim Shared RayPos As Vec3_Float, RayDir As Vec3_Float, RayBlockPos As Vec3_Int, RayPreviousBlockPos As Vec3_Int, BlockSelected As _Unsigned _Byte
 Dim Shared As Vec2_Float CameraAngleSine, CameraAngleCoSine
@@ -200,11 +202,11 @@ Do
         '----------------------------------------------------------------
         'Load Chunks
         ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-        For I = 0 To 63 'Check for 63 continous spiral tile chunks to Load
+        For I = 0 To 255 'Check for 255 continous spiral tile chunks to Load
             ChunkLoadingStartTime = Timer(0.001)
             CL = 0 'if Chunk is loaded
             EXITFOR = 0
-            If InRange(-RenderDistance, LoadChunkX, RenderDistance) And InRange(-RenderDistance, LoadChunkZ, RenderDistance) Then CL = LoadChunkFile(ChunkX + LoadChunkX, ChunkZ + LoadChunkZ)
+            If isChunkVisible(ChunkX - LoadChunkX, ChunkZ - LoadChunkZ) And InRange(-RenderDistance, LoadChunkX, RenderDistance) And InRange(-RenderDistance, LoadChunkZ, RenderDistance) Then CL = LoadChunkFile(ChunkX + LoadChunkX, ChunkZ + LoadChunkZ)
             If CL Then
                 EXITFOR = -1
                 ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
@@ -268,6 +270,8 @@ Do
         CameraAngle.X = ClampCycle(-180, CameraAngle.X, 180)
         CameraAngleSine.X = Sin(_D2R(CameraAngle.X)): CameraAngleSine.Y = Sin(_D2R(CameraAngle.Y))
         CameraAngleCoSine.X = Cos(_D2R(CameraAngle.X)): CameraAngleCoSine.Y = Cos(_D2R(CameraAngle.Y))
+        CameraDirection.X = CameraAngleSine.X * CameraAngleCoSine.Y
+        CameraDirection.Y = -CameraAngleCoSine.X * CameraAngleCoSine.Y
         MW = Sgn(MW + _MouseWheel)
         _MouseMove _Width / 2, _Height / 2
     Wend
@@ -309,6 +313,7 @@ End Sub
 $If GL Then
     Sub _GL
         Dim As _Byte CX, CZ, CPX, CPY, CPZ
+        Dim As Vec2_Float ChunkDirection
         Shared allowGL, __GL_Generate_Texture, __GL_Generate_Sun_Texture, __GL_Generate_Chunks
         Static As Long TextureHandle, SunTextureHandle, MoonTextureHandle, CloudTextureHandle
         If __GL_Generate_Texture Then
@@ -377,6 +382,7 @@ $If GL Then
         _glEnableClientState _GL_COLOR_ARRAY
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Opaque Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowCount = 0 Then _Continue
+            If isChunkVisible(Chunk(I).X, Chunk(I).Z) Then _Continue
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J * ChunkSectionSize + 1))
@@ -387,6 +393,9 @@ $If GL Then
         Next I
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Translucent Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowTCount = 0 Then _Continue
+            ChunkDirection.X = Chunk(I).X
+            ChunkDirection.Y = Chunk(I).Z
+            If isChunkVisible(Chunk(I).X, Chunk(I).Z) Then _Continue
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(J * ChunkSectionSize + 1))
@@ -456,6 +465,7 @@ $If GL Then
 $End If
 
 Sub ShowInfoData
+    Dim As _Byte CX, CZ, CPX, CPY, CPZ
     Print "FPS(G/L):"; GFPS; "/"; LFPS;: Print "Seed:"; Seed;: Print "Time:"; GameTime$
     If ShowDebugInfo Then
         Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
@@ -633,14 +643,13 @@ Function ChunkReloader (FoundI, CX, CZ)
                 If isTransparent(Block) Then
                     For I = 0 To 23
                         FACE%% = _SHL(1, _SHR(I, 2))
-                        If (FACE%% And Visibility) = 0 Then _Continue
-                        If Block = BLOCK_WATER Then If FACE%% <> 4 Then _Continue
+                        If (FACE%% And Visibility) = 0 Or BlockFaces(Block, _SHR(I, 2) + 1) = -1 Then _Continue
                         LTV = LTV + 1
                         TVertices(LTV).X = CubeVertices(I).X + X
                         TVertices(LTV).Y = CubeVertices(I).Y + Y
                         TVertices(LTV).Z = CubeVertices(I).Z + Z
                         TTexCoords(LTV).X = CubeTexCoords(I).X
-                        TTexCoords(LTV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
+                        TTexCoords(LTV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
                         TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
                         TVertexColors(LTV).Y = TVertexColors(LTV).X
                         TVertexColors(LTV).Z = TVertexColors(LTV).X
@@ -655,7 +664,7 @@ Function ChunkReloader (FoundI, CX, CZ)
                         Vertices(LV).Y = CubeVertices(I).Y + Y
                         Vertices(LV).Z = CubeVertices(I).Z + Z
                         TexCoords(LV).X = CubeTexCoords(I).X
-                        TexCoords(LV).Y = (CubeTexCoords(I).Y + _SHR(I, 2) + 6 * Block - 6) / IMAGEHEIGHT
+                        TexCoords(LV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
                         VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
                         VertexColors(LV).Y = VertexColors(LV).X
                         VertexColors(LV).Z = VertexColors(LV).Y
@@ -724,3 +733,18 @@ Sub Vec3_FloatToInt (A As Vec3_Float, B As Vec3_Int)
     B.Y = Int(A.Y)
     B.Z = Int(A.Z)
 End Sub
+Sub Vec2_Unit (A As Vec2_Float)
+    Dim As Double L
+    L = Sqr(A.X * A.X + A.Y * A.Y)
+    A.X = A.X / L
+    A.Y = A.Y / L
+End Sub
+Function Vec2_DotProduct (A As Vec2_Float, B As Vec2_Float)
+    Vec2_DotProduct = (A.X * B.X + A.Y * B.Y)
+End Function
+Function isChunkVisible (CX As _Byte, CZ As _Byte)
+    Static As Vec2_Float ChunkDirection
+    ChunkDirection.X = -CX + Camera.X / 16: ChunkDirection.Y = -CZ + Camera.Z / 16
+    Vec2_Unit ChunkDirection
+    isChunkVisible = Vec2_DotProduct(CameraDirection, ChunkDirection) > Cos(_D2R(FOV + ZOOM * (FOV - 30)))
+End Function

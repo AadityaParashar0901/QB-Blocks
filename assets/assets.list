@@ -1,79 +1,43 @@
-// grass_block
+totaltextures
+15
+textures {
 grass_block_side
-/o
 grass_block_top
 dirt
-grass_block_side
-/o
-
-// dirt block
-dirt
-/o
-/o
-/o
-/o
-/o
-
-// stone
 stone
-/o
-/o
-/o
-/o
-/o
-
-// water
-/n
-/n
 water_still
-/n
-/n
-/n
-
-// sand
 sand
-/o
-/o
-/o
-/o
-/o
-
-// sandstone
-sandstone
 sandstone
 sandstone_top
 sandstone_bottom
-sandstone
-sandstone
-
-// snow
 grass_block_snow
-/o
 snow
-dirt
-grass_block_snow
-/o
-
-// oak_log
 oak_log
-/o
 oak_log_top
-/o
-oak_log
-/o
-
-// oak_leaves
 oak_leaves
-/o
-/o
-/o
-/o
-/o
-
-// oak_planks
 oak_planks
-/o
-/o
-/o
-/o
-/o
+}
+blocks {
+totalblocks 10
+name grass
+textures [1,1,2,3,1,1]
+name dirt
+textures 3
+name stone
+textures 4
+name water
+textures [0,0,5,0,0,0]
+name sand
+textures 6
+name sandstone
+textures [7,7,8,9,7,7]
+name snow
+textures [10,10,11,3,10,10]
+name oak_log
+textures [12,12,13,13,12,12]
+name oak_leaves
+textures 14
+name oak_planks
+textures 15
+}
+end
