@@ -543,7 +543,7 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                         $If NOISE3D Then
                                 If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
                         $Else
-                            ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
+                            ChunkData(X, Y, Z, FoundI) = IIF(Y < H - 4 And H - 4 > WaterLevel, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                         $End If
                     Next Y
                     $If NOISE3D Then

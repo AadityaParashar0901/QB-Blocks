@@ -43,9 +43,7 @@ Do
     If _Trim$(I$) = "/n" Then
     Else
         IMG& = LoadImage("assets/blocks/" + I$)
-        For J = 1 To 20
-            _PutImage ((J - 1) * TEXTURESIZE, (I - 1) * TEXTURESIZE)-(J * TEXTURESIZE - 1, I * TEXTURESIZE - 1), IMG&, Texture ', (0, 0)-(TEXTURESIZE - 1, TEXTURESIZE - 1)
-        Next J
+        _PutImage (0, (I - 1) * TEXTURESIZE)-(TEXTURESIZE - 1, I * TEXTURESIZE - 1), IMG&, Texture
         _FreeImage IMG&
     End If
     If I >= TOTALTEXTURES * 6 Then Exit Do
