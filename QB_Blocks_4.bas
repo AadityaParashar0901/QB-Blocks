@@ -1,3 +1,4 @@
+$Console
 '$Dynamic
 $Resize:On
 
@@ -428,7 +429,7 @@ $If GL Then
             Cls , 0
             ShowInfoData
             _PutImage (_Width / 2, _Height / 2), Cross&
-            _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, (SELECTED_BLOCK * 6 - 5) * TEXTURESIZE)-(TEXTURESIZE - 1, (SELECTED_BLOCK * 6 - 4) * TEXTURESIZE - 1)
+            _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, BlockFaces(SELECTED_BLOCK, 3) * TEXTURESIZE)-(TEXTURESIZE - 1, (BlockFaces(SELECTED_BLOCK, 3) + 1) * TEXTURESIZE - 1)
             _Display
         End If
         GFPSCount = GFPSCount + 1
@@ -743,7 +744,7 @@ Function Vec2_DotProduct (A As Vec2_Float, B As Vec2_Float)
 End Function
 Function isChunkVisible (CX As _Byte, CZ As _Byte)
     Static As Vec2_Float ChunkDirection
-    ChunkDirection.X = -CX + Camera.X / 16: ChunkDirection.Y = -CZ + Camera.Z / 16
+    ChunkDirection.X = -CX + Int(Camera.X / 16): ChunkDirection.Y = -CZ + Int(Camera.Z / 16)
     Vec2_Unit ChunkDirection
     isChunkVisible = Vec2_DotProduct(CameraDirection, ChunkDirection) > Cos(_D2R(FOV + ZOOM * (FOV - 30)))
 End Function

@@ -21,5 +21,5 @@ If BlockSelected Then
         End If
     End If
 End If
-SELECTED_BLOCK = Max(1, Min(TOTALTEXTURES, SELECTED_BLOCK + MW + _KeyDown(18432) - _KeyDown(20480) + _KeyDown(19200) - _KeyDown(19712)))
+SELECTED_BLOCK = Max(1, Min(TOTALBLOCKS, SELECTED_BLOCK + MW + _KeyDown(18432) - _KeyDown(20480) + _KeyDown(19200) - _KeyDown(19712)))
 While _KeyDown(18432) Or _KeyDown(20480) Or _KeyDown(19200) Or _KeyDown(19712): _Limit 30: Wend
