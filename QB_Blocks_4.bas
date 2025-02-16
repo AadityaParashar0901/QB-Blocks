@@ -66,7 +66,7 @@ Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _By
 Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
 Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
 Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime, ChunkLoadTimeHistory(1 To 80) 'To calculate chunk loading lag
-Dim Shared As _Unsigned Long LoadedChunks
+Dim Shared As _Unsigned Long LoadedChunks, VisibleChunks
 Dim Shared CubeVertices(23) As Vec3_Int, CubeTexCoords(23) As Vec2_Float
 Restore CUBEMODEL
 For I = 0 To 23
@@ -314,6 +314,7 @@ $If GL Then
     Sub _GL
         Dim As _Byte CX, CZ, CPX, CPY, CPZ
         Dim As Vec2_Float ChunkDirection
+        Dim As _Unsigned Long ChunksVisible
         Shared allowGL, __GL_Generate_Texture, __GL_Generate_Sun_Texture, __GL_Generate_Chunks
         Static As Long TextureHandle, SunTextureHandle, MoonTextureHandle, CloudTextureHandle
         If __GL_Generate_Texture Then
@@ -380,6 +381,7 @@ $If GL Then
         _glEnableClientState _GL_VERTEX_ARRAY
         _glEnableClientState _GL_TEXTURE_COORD_ARRAY
         _glEnableClientState _GL_COLOR_ARRAY
+        ChunksVisible = 0
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Opaque Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowCount = 0 Then _Continue
             If isChunkVisible(Chunk(I).X, Chunk(I).Z) Then _Continue
@@ -390,7 +392,9 @@ $If GL Then
             _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(VertexColors(J * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(J + 1).ShowCount
             _glPopMatrix
+            ChunksVisible = ChunksVisible + 1
         Next I
+        VisibleChunks = ChunksVisible
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Translucent Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowTCount = 0 Then _Continue
             ChunkDirection.X = Chunk(I).X
@@ -470,7 +474,7 @@ Sub ShowInfoData
     If ShowDebugInfo Then
         Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
         Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
-        Print "Chunks Loaded:"; LoadedChunks
+        Print "Chunks L/V:"; LoadedChunks; VisibleChunks
         ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
         Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
         Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
