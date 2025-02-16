@@ -1,4 +1,3 @@
-$Console
 '$Dynamic
 $Resize:On
 

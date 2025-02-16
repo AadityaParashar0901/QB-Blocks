@@ -136,8 +136,9 @@ Sub Settings_Dialog
         Slider RenderDistance, _Width / 2, _Height * 0.4, "Render Distance", 1, MaxRenderDistance
         TotalChunks = (2 * RenderDistance + 1) ^ 2
         Slider FOV, _Width / 2, _Height * 0.5, "FOV", 70, 110
-        If Button(2, _Width / 10, _Height / 10, "") Then Settings False: Exit Do
+        If Button(2, _Width / 10, _Height / 10, "") Then Exit Do
         _Display
     Loop Until _KeyDown(27)
+    Settings False
     While _KeyDown(27): Wend
 End Sub
