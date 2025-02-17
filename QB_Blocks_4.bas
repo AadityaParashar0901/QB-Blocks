@@ -491,9 +491,6 @@ End Sub
 
 'Noise Functions
 '$Include:'noise.bas'
-Function new_fractal2 (CX, CZ, S, O, M)
-    new_fractal2 = Abs(1.1 * fractal2(CX, CZ, S, O, M) - 0.1) * 0.9 + 0.1
-End Function
 '----------------------------------------------------------------
 
 Sub UnLoadChunks
