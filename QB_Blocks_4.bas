@@ -44,7 +44,8 @@ Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
-Const NoiseSmoothness = 128
+Const NoiseSmoothness = 64
+Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
 $Let NOISE3D = 0
 'Noise 3D can be 0 OR 1 ONLY
 
@@ -120,7 +121,8 @@ Else
 End If
 
 Dim Shared SeedRatio As Single, Seed As _Unsigned Integer
-Dim Shared perm(0 To 65536 * 7 - 1) As Single
+Dim Shared perm2(0 To 255, 0 To 255, 0 To 7) As Single
+Dim Shared perm3(0 To 15, 0 To 15, 0 To 15, 0 To 7) As Single
 
 If _DirExists("saves/" + WORLDFOLDER$) = 0 Then MkDir "saves/" + WORLDFOLDER$
 If _DirExists("saves/" + WORLDFOLDER$ + "/chunks") = 0 Then MkDir "saves/" + WORLDFOLDER$ + "/chunks"
@@ -217,17 +219,17 @@ Do
                 ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
                 MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
             End If
-            E = 0: Select Case LoadChunkDirection
+            e = 0: Select Case LoadChunkDirection
                 Case 1: LoadChunkZ = LoadChunkZ + 1
-                    If LoadChunkZ - InitialLoadChunkZ = LoadChunkLength + 1 Then E = -1
+                    If LoadChunkZ - InitialLoadChunkZ = LoadChunkLength + 1 Then e = -1
                 Case 2: LoadChunkX = LoadChunkX + 1
-                    If LoadChunkX - InitialLoadChunkX = LoadChunkLength + 1 Then E = -1
+                    If LoadChunkX - InitialLoadChunkX = LoadChunkLength + 1 Then e = -1
                 Case 3: LoadChunkZ = LoadChunkZ - 1
-                    If InitialLoadChunkZ - LoadChunkZ = LoadChunkLength + 1 Then E = -1
+                    If InitialLoadChunkZ - LoadChunkZ = LoadChunkLength + 1 Then e = -1
                 Case 4: LoadChunkX = LoadChunkX - 1
-                    If InitialLoadChunkX - LoadChunkX = LoadChunkLength + 1 Then E = -1
+                    If InitialLoadChunkX - LoadChunkX = LoadChunkLength + 1 Then e = -1
             End Select
-            If E Then
+            If e Then
                 LoadChunkDirection = LoadChunkDirection + 1
                 If LoadChunkDirection = 5 Then LoadChunkDirection = 1
                 If LoadChunkDirection = 1 Or LoadChunkDirection = 3 Then LoadChunkLength = LoadChunkLength + 1
@@ -333,7 +335,7 @@ $If GL Then
         _glEnable _GL_DEPTH_TEST
         _glClearColor SkyColorRed, SkyColorGreen, SkyColorBlue, 0
         _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
-        _glTranslatef 0, 0, -0.25
+        '_glTranslatef 0, 0, -0.25
         _glRotatef -CameraAngle.Y, 1, 0, 0
         _glRotatef CameraAngle.X, 0, 1, 0
         _glTranslatef 0, -Camera.Y, 0
