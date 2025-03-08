@@ -131,6 +131,12 @@ LoadPlayerData
 SavePlayerData
 Seed = SeedRatio * 65536
 RePERM Seed
+'Calculate Fade Function Lookup Table
+Dim Shared fade!(0 To 255)
+For I = 0 To 255
+    t! = I / 256
+    fade!(I) = t! * t! * (3 - 2 * t!)
+Next I
 '----------------------------------------------------------------
 'Initialize Variables, Timers
 Dim Shared As _Unsigned Integer LFPS, GFPS, LFPSCount, GFPSCount: LFPS = 60
@@ -152,7 +158,7 @@ ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
 T$ = "Generating Chunks": TotalChunks = (2 * Min(4, RenderDistance) + 1) ^ 2
 For R = 0 To Min(4, RenderDistance): For X = ChunkX - R To ChunkX + R: For Z = ChunkZ - R To ChunkZ + R
             If X > ChunkX - R And X < ChunkX + R And Z > ChunkZ - R And Z < ChunkZ + R Then _Continue
-            T = LoadChunkFile(X, Z)
+            t = LoadChunkFile(X, Z)
             If _Resize Then
                 Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
                 Color _RGB32(255, 255, 255), _RGB32(0, 127)
