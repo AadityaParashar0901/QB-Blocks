@@ -183,6 +183,7 @@ isPaused = 0
 _MouseHide
 Do
     _Limit 60
+    On Error GoTo ErrHandler
     LFPSCount = LFPSCount + 1
     If _WindowHasFocus = 0 Or isPaused = -1 Then
         _MouseShow: isPaused = -1
@@ -209,42 +210,7 @@ Do
         UnLoadChunks
         '----------------------------------------------------------------
         'Load Chunks
-        ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
-        For I = 0 To 255 'Check for 255 continous spiral tile chunks to Load
-            ChunkLoadingStartTime = Timer(0.001)
-            CL = 0 'if Chunk is loaded
-            EXITFOR = 0
-            If isChunkVisible(ChunkX - LoadChunkX, ChunkZ - LoadChunkZ) And InRange(-RenderDistance, LoadChunkX, RenderDistance) And InRange(-RenderDistance, LoadChunkZ, RenderDistance) Then CL = LoadChunkFile(ChunkX + LoadChunkX, ChunkZ + LoadChunkZ)
-            If CL Then
-                EXITFOR = -1
-                ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
-                'Add to History for graph
-                For J = 1 To UBound(ChunkLoadTimeHistory) - 1
-                    Swap ChunkLoadTimeHistory(J), ChunkLoadTimeHistory(J + 1)
-                Next J
-                ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
-                MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
-            End If
-            e = 0: Select Case LoadChunkDirection
-                Case 1: LoadChunkZ = LoadChunkZ + 1
-                    If LoadChunkZ - InitialLoadChunkZ = LoadChunkLength + 1 Then e = -1
-                Case 2: LoadChunkX = LoadChunkX + 1
-                    If LoadChunkX - InitialLoadChunkX = LoadChunkLength + 1 Then e = -1
-                Case 3: LoadChunkZ = LoadChunkZ - 1
-                    If InitialLoadChunkZ - LoadChunkZ = LoadChunkLength + 1 Then e = -1
-                Case 4: LoadChunkX = LoadChunkX - 1
-                    If InitialLoadChunkX - LoadChunkX = LoadChunkLength + 1 Then e = -1
-            End Select
-            If e Then
-                LoadChunkDirection = LoadChunkDirection + 1
-                If LoadChunkDirection = 5 Then LoadChunkDirection = 1
-                If LoadChunkDirection = 1 Or LoadChunkDirection = 3 Then LoadChunkLength = LoadChunkLength + 1
-                If LoadChunkLength = 2 * RenderDistance + 1 Then LoadChunkLength = 0: LoadChunkX = 0: LoadChunkZ = 0
-                InitialLoadChunkX = LoadChunkX
-                InitialLoadChunkZ = LoadChunkZ
-            End If
-            If EXITFOR Then Exit For
-        Next I
+        LoadChunks
         '----------------------------------------------------------------
     End If
 
@@ -300,6 +266,15 @@ GFPSCount = 0
 If LFPSCount Then LFPS = LFPSCount
 LFPSCount = 0
 Return
+
+ErrHandler:
+_Echo "[Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
+Resume Next
+
+GLErrHandler:
+_Echo "[GL Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
+Resume Next
+
 '----------------------------------------------------------------
 'Game Tick
 '$Include:'GameTick.bas'
@@ -335,6 +310,7 @@ $If GL Then
 
         If allowGL = 0 Then Exit Sub
 
+        On Error GoTo GLErrHandler
         _glViewport 0, 0, _Width - 1, _Height - 1
         _glEnable _GL_BLEND
         _glDisable _GL_MULTISAMPLE
@@ -392,7 +368,6 @@ $If GL Then
         ChunksVisible = 0
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Opaque Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowCount = 0 Then _Continue
-            If isChunkVisible(Chunk(I).X, Chunk(I).Z) Then _Continue
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J * ChunkSectionSize + 1))
@@ -407,7 +382,6 @@ $If GL Then
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowTCount = 0 Then _Continue
             ChunkDirection.X = Chunk(I).X
             ChunkDirection.Y = Chunk(I).Z
-            If isChunkVisible(Chunk(I).X, Chunk(I).Z) Then _Continue
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(J * ChunkSectionSize + 1))
@@ -501,6 +475,49 @@ End Sub
 '$Include:'noise.bas'
 '----------------------------------------------------------------
 
+Sub LoadChunks
+    Static LoadChunkX, LoadChunkZ, ChunkToLoad
+    Static Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
+    Chunk1X = ChunkX - RenderDistance
+    Chunk2X = ChunkX + RenderDistance
+    Chunk1Z = ChunkZ - RenderDistance
+    Chunk2Z = ChunkZ + RenderDistance
+    $Checking:Off
+    ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Byte
+    For I = 1 To TotalChunks
+        If Chunk1X <= Chunk(I).X And Chunk(I).X <= Chunk2X And Chunk1Z <= Chunk(I).Z And Chunk(I).Z <= Chunk2Z Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData
+    Next I
+    EXITFOR = 0
+    ChunkToLoad = 0
+    For X = Chunk1X To Chunk2X: For Y = Chunk1Z To Chunk2Z
+            If __LoadedChunks(X, Y) = 0 Then
+                ChunkToLoad = 1
+                LoadChunkX = X
+                LoadChunkZ = Y
+                EXITFOR = 1
+                Exit For
+            End If
+        Next Y
+        If EXITFOR Then Exit For
+    Next X
+    $Checking:On
+    If ChunkToLoad = 0 Then Exit Sub
+    ChunkLoadingStartTime = Timer(0.001)
+    CL = 0 'if Chunk is loaded
+    CL = LoadChunkFile(LoadChunkX, LoadChunkZ)
+    If CL Then
+        EXITFOR = -1
+        ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
+        'Add to History for graph
+        For J = 1 To UBound(ChunkLoadTimeHistory) - 1
+            Swap ChunkLoadTimeHistory(J), ChunkLoadTimeHistory(J + 1)
+        Next J
+        ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
+        MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
+    End If
+End Sub
+
 Sub UnLoadChunks
     Static CurrentOffset As _Unsigned Integer
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
@@ -508,6 +525,7 @@ Sub UnLoadChunks
         CurrentOffset = ClampCycle(LBound(Chunk), CurrentOffset + 1, UBound(Chunk))
         If Chunk(CurrentOffset).LoadedChunkData = 0 Then _Continue
         If InRange(-RenderDistance, Chunk(CurrentOffset).X - ChunkX, RenderDistance) = 0 Or InRange(-RenderDistance, Chunk(CurrentOffset).Z - ChunkZ, RenderDistance) = 0 Then
+            $Checking:Off
             Chunk(CurrentOffset).X = 0
             Chunk(CurrentOffset).Z = 0
             Chunk(CurrentOffset).Count = 0
@@ -517,6 +535,7 @@ Sub UnLoadChunks
             Chunk(CurrentOffset).LoadedChunkData = 0
             Chunk(CurrentOffset).LoadedRenderData = 0
             LoadedChunks = LoadedChunks - 1
+            $Checking:On
         End If
     Next I
 End Sub
@@ -742,18 +761,6 @@ Sub Vec3_FloatToInt (A As Vec3_Float, B As Vec3_Int)
     B.Y = Int(A.Y)
     B.Z = Int(A.Z)
 End Sub
-Sub Vec2_Unit (A As Vec2_Float)
-    Dim As Double L
-    L = Sqr(A.X * A.X + A.Y * A.Y)
-    A.X = A.X / L
-    A.Y = A.Y / L
-End Sub
 Function Vec2_DotProduct (A As Vec2_Float, B As Vec2_Float)
     Vec2_DotProduct = (A.X * B.X + A.Y * B.Y)
-End Function
-Function isChunkVisible (CX As _Byte, CZ As _Byte)
-    Static As Vec2_Float ChunkDirection
-    ChunkDirection.X = -CX + Int(Camera.X / 16): ChunkDirection.Y = -CZ + Int(Camera.Z / 16)
-    Vec2_Unit ChunkDirection
-    isChunkVisible = Vec2_DotProduct(CameraDirection, ChunkDirection) > Cos(_D2R(FOV + ZOOM * (FOV - 30)))
 End Function
