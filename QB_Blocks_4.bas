@@ -44,7 +44,7 @@ Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
-Const NoiseSmoothness = 128
+Const NoiseSmoothness = 64
 Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
 $Let NOISE3D = 0
 'Noise 3D can be 0 OR 1 ONLY
@@ -68,12 +68,13 @@ Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
 Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
 Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime, ChunkLoadTimeHistory(1 To 80) 'To calculate chunk loading lag
 Dim Shared As _Unsigned Long LoadedChunks, VisibleChunks
+Dim Shared As _Unsigned _Byte LoadedChunksMap(-MaxRenderDistance To MaxRenderDistance, -MaxRenderDistance To MaxRenderDistance)
+'----------------------------------------------------------------
 Dim Shared CubeVertices(23) As Vec3_Int, CubeTexCoords(23) As Vec2_Float
 Restore CUBEMODEL
 For I = 0 To 23
     Read CubeVertices(I).X, CubeVertices(I).Y, CubeVertices(I).Z, CubeTexCoords(I).X, CubeTexCoords(I).Y
 Next I
-'----------------------------------------------------------------
 CUBEMODEL:
 '$Include:'assets\models\cube'
 '----------------------------------------------------------------
@@ -156,9 +157,9 @@ PrintString (_Width - FONTWIDTH * Len(T$)) / 2, (_Height - FONTHEIGHT) / 2, "Loa
 ReDim Shared Chunk(1 To MAXCHUNKS) As ChunkType: LoadedChunks = 0
 ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
 T$ = "Generating Chunks": TotalChunks = (2 * Min(4, RenderDistance) + 1) ^ 2
-For R = 0 To Min(4, RenderDistance): For X = ChunkX - R To ChunkX + R: For Z = ChunkZ - R To ChunkZ + R
-            If X > ChunkX - R And X < ChunkX + R And Z > ChunkZ - R And Z < ChunkZ + R Then _Continue
-            t = LoadChunkFile(X, Z)
+For R = 0 To Min(4, RenderDistance): For x = ChunkX - R To ChunkX + R: For z = ChunkZ - R To ChunkZ + R
+            If x > ChunkX - R And x < ChunkX + R And z > ChunkZ - R And z < ChunkZ + R Then _Continue
+            t = LoadChunkFile(x, z)
             If _Resize Then
                 Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
                 Color _RGB32(255, 255, 255), _RGB32(0, 127)
@@ -169,14 +170,10 @@ For R = 0 To Min(4, RenderDistance): For X = ChunkX - R To ChunkX + R: For Z = C
             Line (_Width / 2 - 128, (_Height + FONTHEIGHT) / 2)-(_Width / 2 + 128, (_Height + FONTHEIGHT) / 2 + 4), _RGB32(0, 32), BF
             Line (_Width / 2 - 128, (_Height + FONTHEIGHT) / 2)-(_Width / 2 - 128 + 256 * LoadedChunks / TotalChunks, (_Height + FONTHEIGHT) / 2 + 4), _RGB32(0, 127, 255), BF
             _Display
-Next Z, X: Next R
+Next z, x: Next R
 TotalChunks = (2 * RenderDistance + 1) ^ 2
 '----------------------------------------------------------------
 Timer(FPSCounterTimer) On
-LoadChunkX = Int(Camera.X / 16) 'Spiral Chunk Loading Variables
-LoadChunkZ = Int(Camera.Z / 16)
-LoadChunkDirection = 1
-LoadChunkLength = 1
 '----------------------------------------------------------------
 
 isPaused = 0
@@ -454,6 +451,13 @@ Sub ShowInfoData
         For I = 1 To UBound(ChunkLoadTimeHistory) - 1
             Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
         Next I
+        oX = _Width - 2 * MaxRenderDistance - 2
+        oY = 74 + MaxRenderDistance
+        Line (oX - MaxRenderDistance, oY - MaxRenderDistance)-(oX + MaxRenderDistance, oY + MaxRenderDistance), _RGB32(0), B
+        Line (oX - RenderDistance, oY - RenderDistance)-(oX + RenderDistance, oY + RenderDistance), _RGB32(127), BF
+        For X = -MaxRenderDistance To MaxRenderDistance: For Z = -MaxRenderDistance To MaxRenderDistance
+                Line (oX + X, oY + Z)-(oX + X + 1, oY + Z + 1), -LoadedChunksMap(X, Z), BF
+        Next Z, X
     End If
 End Sub
 '----------------------------------------------------------------
@@ -471,20 +475,25 @@ Sub LoadChunks
     Chunk2X = ChunkX + RenderDistance
     Chunk1Z = ChunkZ - RenderDistance
     Chunk2Z = ChunkZ + RenderDistance
-    ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Byte
-    For I = 1 To TotalChunks
-        If Chunk1X <= Chunk(I).X And Chunk(I).X <= Chunk2X And Chunk1Z <= Chunk(I).Z And Chunk(I).Z <= Chunk2Z Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData
+    ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Unsigned Long
+    For I = 1 To MAXCHUNKS
+        If (Chunk1X <= Chunk(I).X) And (Chunk(I).X <= Chunk2X) And (Chunk1Z <= Chunk(I).Z) And (Chunk(I).Z <= Chunk2Z) Then
+            If __LoadedChunks(Chunk(I).X, Chunk(I).Z) = 0 Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = (Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData)
+        End If
     Next I
     ChunkToLoad = 0
-    For X = Chunk1X To Chunk2X: For Y = Chunk1Z To Chunk2Z
-            If __LoadedChunks(X, Y) = 0 Then
-                ChunkToLoad = 1
-                LoadChunkX = X
-                LoadChunkZ = Y
-                Exit For
+    For X = Chunk1X To Chunk2X: For Z = Chunk1Z To Chunk2Z
+            If __LoadedChunks(X, Z) = 0 Then
+                If ChunkToLoad = 0 Then
+                    ChunkToLoad = 1
+                    LoadChunkX = X
+                    LoadChunkZ = Z
+                End If
+                LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 0
+            Else
+                LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 1
             End If
-        Next Y
-        If ChunkToLoad Then Exit For
+        Next Z
     Next X
     If ChunkToLoad = 0 Then Exit Sub
     ChunkLoadingStartTime = Timer(0.001)
