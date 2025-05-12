@@ -44,7 +44,7 @@ Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
-Const NoiseSmoothness = 64
+Const NoiseSmoothness = 128
 Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
 $Let NOISE3D = 0
 'Noise 3D can be 0 OR 1 ONLY
@@ -199,19 +199,8 @@ Do
     End If
 
     If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
-        If Int(Camera.X / 16) <> ChunkX Or Int(Camera.Z / 16) <> ChunkZ Then 'Reset the Spiral Variables
-            LoadChunkLength = 0
-            LoadChunkDirection = 1
-            LoadChunkX = 0
-            LoadChunkZ = 0
-            InitialLoadChunkX = 0
-            InitialLoadChunkZ = 0
-        End If
         UnLoadChunks
-        '----------------------------------------------------------------
-        'Load Chunks
         LoadChunks
-        '----------------------------------------------------------------
     End If
 
     If isPaused Then 'Pause Menu
@@ -380,8 +369,6 @@ $If GL Then
         VisibleChunks = ChunksVisible
         J = LBound(Chunk) - 2: For I = LBound(Chunk) To MAXCHUNKS 'Display Translucent Blocks in Chunks
             J = J + 1: If Chunk(I).ShowRenderData = 0 Or Chunk(I).ShowTCount = 0 Then _Continue
-            ChunkDirection.X = Chunk(I).X
-            ChunkDirection.Y = Chunk(I).Z
             _glPushMatrix
             _glTranslatef Chunk(I).X * 16, 0, Chunk(I).Z * 16
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(TVertices(J * ChunkSectionSize + 1))
@@ -476,38 +463,34 @@ End Sub
 '----------------------------------------------------------------
 
 Sub LoadChunks
-    Static LoadChunkX, LoadChunkZ, ChunkToLoad
-    Static Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    Static As Integer LoadChunkX, LoadChunkZ
+    Dim As _Unsigned _Byte ChunkToLoad
+    Static As Integer Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
     Chunk1X = ChunkX - RenderDistance
     Chunk2X = ChunkX + RenderDistance
     Chunk1Z = ChunkZ - RenderDistance
     Chunk2Z = ChunkZ + RenderDistance
-    $Checking:Off
     ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Byte
     For I = 1 To TotalChunks
         If Chunk1X <= Chunk(I).X And Chunk(I).X <= Chunk2X And Chunk1Z <= Chunk(I).Z And Chunk(I).Z <= Chunk2Z Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData
     Next I
-    EXITFOR = 0
     ChunkToLoad = 0
     For X = Chunk1X To Chunk2X: For Y = Chunk1Z To Chunk2Z
             If __LoadedChunks(X, Y) = 0 Then
                 ChunkToLoad = 1
                 LoadChunkX = X
                 LoadChunkZ = Y
-                EXITFOR = 1
                 Exit For
             End If
         Next Y
-        If EXITFOR Then Exit For
+        If ChunkToLoad Then Exit For
     Next X
-    $Checking:On
     If ChunkToLoad = 0 Then Exit Sub
     ChunkLoadingStartTime = Timer(0.001)
     CL = 0 'if Chunk is loaded
     CL = LoadChunkFile(LoadChunkX, LoadChunkZ)
     If CL Then
-        EXITFOR = -1
         ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
         'Add to History for graph
         For J = 1 To UBound(ChunkLoadTimeHistory) - 1
