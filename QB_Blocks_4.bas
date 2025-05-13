@@ -197,7 +197,7 @@ Do
 
     If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
         UnLoadChunks
-        LoadChunks
+        If LFPSCount And 2 Then LoadChunks
     End If
 
     If isPaused Then 'Pause Menu
@@ -478,23 +478,34 @@ Sub LoadChunks
     ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Unsigned Long
     For I = 1 To MAXCHUNKS
         If (Chunk1X <= Chunk(I).X) And (Chunk(I).X <= Chunk2X) And (Chunk1Z <= Chunk(I).Z) And (Chunk(I).Z <= Chunk2Z) Then
-            If __LoadedChunks(Chunk(I).X, Chunk(I).Z) = 0 Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = (Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData)
+            __T~%% = Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData
+            If __LoadedChunks(Chunk(I).X, Chunk(I).Z) = 0 Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = __T~%%
+            ChunkToLoad = -__T~%% - (__T~%% = 0) * ChunkToLoad
         End If
     Next I
+    If ChunkToLoad = 0 Then Exit Sub
     ChunkToLoad = 0
-    For X = Chunk1X To Chunk2X: For Z = Chunk1Z To Chunk2Z
-            If __LoadedChunks(X, Z) = 0 Then
-                If ChunkToLoad = 0 Then
-                    ChunkToLoad = 1
-                    LoadChunkX = X
-                    LoadChunkZ = Z
+    For R = 0 To RenderDistance
+        __C1X = ChunkX - R
+        __C2X = ChunkX + R
+        __C1Z = ChunkZ - R
+        __C2Z = ChunkZ + R
+        For X = __C1X To __C2X
+            For Z = __C1Z To __C2Z
+                If __C1X < X And X < __C2X And __C1Z < Z And Z < __C2Z Then _Continue
+                If __LoadedChunks(X, Z) = 0 Then
+                    If ChunkToLoad = 0 Then
+                        ChunkToLoad = 1
+                        LoadChunkX = X
+                        LoadChunkZ = Z
+                    End If
+                    LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 0
+                Else
+                    LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 1
                 End If
-                LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 0
-            Else
-                LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 1
-            End If
-        Next Z
-    Next X
+            Next Z
+        Next X
+    Next R
     If ChunkToLoad = 0 Then Exit Sub
     ChunkLoadingStartTime = Timer(0.001)
     CL = 0 'if Chunk is loaded
