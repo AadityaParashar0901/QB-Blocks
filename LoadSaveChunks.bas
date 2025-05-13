@@ -16,7 +16,7 @@ Sub SetBlockReloadChunk (X As Long, Y As Long, Z As Long, B As _Unsigned _Byte)
     Chunk(FoundI).LoadedRenderData = 0
     Chunk(FoundI).Count = 0
     Chunk(FoundI).TCount = 0
-    T = ChunkReloader(FoundI, __CX, __CZ)
+    T = ChunkReloader(FoundI, __CX, __CZ, Chunk(FoundI).LevelOfDetail)
     SaveChunkFile __CX, __CZ
 End Sub
 Sub SetAnotherBlockReloadChunk (__CX As Integer, __CZ As Integer, __CPX As Integer, __CPY As Integer, __CPZ As Integer, B As _Unsigned _Byte)
@@ -30,7 +30,7 @@ Sub SetAnotherBlockReloadChunk (__CX As Integer, __CZ As Integer, __CPX As Integ
     Chunk(FoundI).LoadedRenderData = 0
     Chunk(FoundI).Count = 0
     Chunk(FoundI).TCount = 0
-    T = ChunkReloader(FoundI, __CX, __CZ)
+    T = ChunkReloader(FoundI, __CX, __CZ, Chunk(FoundI).LevelOfDetail)
     SaveChunkFile __CX, __CZ
 End Sub
 
@@ -41,7 +41,7 @@ Sub WipeChunk (FoundI As _Unsigned Integer)
     _MemFree M
 End Sub
 
-Function LoadChunkFile (CX, CZ)
+Function LoadChunkFile (CX As Long, CZ As Long, LOD As _Unsigned _Byte)
     For I = LBound(Chunk) To UBound(Chunk)
         If Chunk(I).X = CX And Chunk(I).Z = CZ And Chunk(I).LoadedChunkData = -1 Then Exit Function
         If Chunk(I).LoadedChunkData = 0 And FoundI = 0 Then FoundI = I
@@ -60,12 +60,12 @@ Function LoadChunkFile (CX, CZ)
             Get #F, , TMPCHUNKDATA()
             For X = 0 To 17: For Z = 0 To 17: For Y = 0 To ChunkHeight + 1: ChunkData(X, Y, Z, FoundI) = TMPCHUNKDATA(X, Y, Z): Next Y, Z, X
             Close #F
-            LoadChunkFile = ChunkReloader(FoundI, CX, CZ)
+            LoadChunkFile = ChunkReloader(FoundI, CX, CZ, LOD)
         Else
-            LoadChunkFile = ChunkLoader(FoundI, CX, CZ) And ChunkReloader(FoundI, CX, CZ)
+            LoadChunkFile = ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
         End If
     Else
-        LoadChunkFile = ChunkLoader(FoundI, CX, CZ) And ChunkReloader(FoundI, CX, CZ)
+        LoadChunkFile = ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
     End If
     LoadedChunks = LoadedChunks + 1
 End Function

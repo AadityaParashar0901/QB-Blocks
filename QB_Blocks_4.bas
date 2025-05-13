@@ -17,7 +17,7 @@ Type ChunkType
     As Integer X, Z
     As _Unsigned Long Count, TCount, ShowCount, ShowTCount
     As Integer MinimumHeight, MaximumHeight
-    As _Byte LoadedChunkData, LoadedRenderData, ShowRenderData
+    As _Byte LoadedChunkData, LoadedRenderData, ShowRenderData, LevelOfDetail
 End Type
 
 Screen _NewImage(960, 540, 32)
@@ -44,10 +44,13 @@ Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
-Const NoiseSmoothness = 64
-Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
-$Let NOISE3D = 0
-'Noise 3D can be 0 OR 1 ONLY
+Const NoiseSmoothness = 256
+Const NoiseComplexity = 7 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
+Const MaxLevelOfDetail = 4 '0 ~ 4 Only, Any other value will generate an error
+Const LevelOfDetailChunkMultiplier = 3 '3 ~ 4 Only, this changes how will LOD decrease per render distance. Higher values decrease LOD slowly. Other values aren't working yet
+
+'Terrain Settings
+Const SpawnTrees = 0
 
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
@@ -67,7 +70,7 @@ Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _By
 Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
 Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
 Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime, ChunkLoadTimeHistory(1 To 80) 'To calculate chunk loading lag
-Dim Shared As _Unsigned Long LoadedChunks, VisibleChunks
+Dim Shared As _Unsigned Long LoadedChunks, VisibleChunks, QuadsVisible, TQuadsVisible
 Dim Shared As _Unsigned _Byte LoadedChunksMap(-MaxRenderDistance To MaxRenderDistance, -MaxRenderDistance To MaxRenderDistance)
 '----------------------------------------------------------------
 Dim Shared CubeVertices(23) As Vec3_Int, CubeTexCoords(23) As Vec2_Float
@@ -159,7 +162,7 @@ ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
 T$ = "Generating Chunks": TotalChunks = (2 * Min(4, RenderDistance) + 1) ^ 2
 For R = 0 To Min(4, RenderDistance): For x = ChunkX - R To ChunkX + R: For z = ChunkZ - R To ChunkZ + R
             If x > ChunkX - R And x < ChunkX + R And z > ChunkZ - R And z < ChunkZ + R Then _Continue
-            t = LoadChunkFile(x, z)
+            t = LoadChunkFile(x, z, 0)
             If _Resize Then
                 Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
                 Color _RGB32(255, 255, 255), _RGB32(0, 127)
@@ -197,7 +200,7 @@ Do
 
     If (LFPSCount Mod ChunkLoadingSpeed) = 0 Then
         UnLoadChunks
-        If LFPSCount And 2 Then LoadChunks
+        LoadChunks
     End If
 
     If isPaused Then 'Pause Menu
@@ -283,7 +286,7 @@ $If GL Then
     Sub _GL
         Dim As _Byte CX, CZ, CPX, CPY, CPZ
         Dim As Vec2_Float ChunkDirection
-        Dim As _Unsigned Long ChunksVisible
+        Dim As _Unsigned Long ChunksVisible, __QuadsVisible
         Shared allowGL, __GL_Generate_Texture, __GL_Generate_Sun_Texture, __GL_Generate_Chunks
         Static As Long TextureHandle, SunTextureHandle, MoonTextureHandle, CloudTextureHandle
         If __GL_Generate_Texture Then
@@ -359,8 +362,9 @@ $If GL Then
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J * ChunkSectionSize + 1))
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TexCoords(J * ChunkSectionSize + 1))
             _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(VertexColors(J * ChunkSectionSize + 1))
-            _glDrawArrays _GL_QUADS, 0, Chunk(J + 1).ShowCount
+            _glDrawArrays _GL_QUADS, 0, Chunk(I).ShowCount
             _glPopMatrix
+            __QuadsVisible = __QuadsVisible + Chunk(I).ShowCount
             ChunksVisible = ChunksVisible + 1
         Next I
         VisibleChunks = ChunksVisible
@@ -372,8 +376,11 @@ $If GL Then
             _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TTexCoords(J * ChunkSectionSize + 1))
             _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(TVertexColors(J * ChunkSectionSize + 1))
             _glDrawArrays _GL_QUADS, 0, Chunk(I).ShowTCount
+            __TQuadsVisible = __TQuadsVisible + Chunk(I).ShowTCount
             _glPopMatrix
         Next I
+        QuadsVisible = __QuadsVisible
+        TQuadsVisible = __TQuadsVisible
         If FOG > 0 Then _glDisable _GL_FOG
         _glDisableClientState _GL_VERTEX_ARRAY
         _glDisableClientState _GL_TEXTURE_COORD_ARRAY
@@ -383,7 +390,7 @@ $If GL Then
         'Draw Clouds
         _glTranslatef Camera.X, 0, Camera.Z
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
-        X = 0: Y = ChunkHeight * 0.8: Z = Time / 20: S = ChunkHeight * 64
+        X = 0: Y = ChunkHeight * 1.2: Z = Time / 20: S = ChunkHeight * 64
         _glBegin _GL_QUADS: For I = 8 To 11
             _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
             _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
@@ -441,6 +448,7 @@ Sub ShowInfoData
         Print Using "Player Position: ####.## ####.## ####.##"; Camera.X; Camera.Y; Camera.Z
         Print Using "Player Angle: ####.## ###.##"; CameraAngle.X; CameraAngle.Y
         Print "Chunks L/V:"; LoadedChunks; VisibleChunks
+        Print "Quads:"; QuadsVisible; TQuadsVisible
         ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
         Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
         Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
@@ -451,13 +459,41 @@ Sub ShowInfoData
         For I = 1 To UBound(ChunkLoadTimeHistory) - 1
             Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
         Next I
-        oX = _Width - 2 * MaxRenderDistance - 2
+        $Checking:Off
+        oX = _Width - MaxRenderDistance - 32
         oY = 74 + MaxRenderDistance
-        Line (oX - MaxRenderDistance, oY - MaxRenderDistance)-(oX + MaxRenderDistance, oY + MaxRenderDistance), _RGB32(0), B
-        Line (oX - RenderDistance, oY - RenderDistance)-(oX + RenderDistance, oY + RenderDistance), _RGB32(127), BF
-        For X = -MaxRenderDistance To MaxRenderDistance: For Z = -MaxRenderDistance To MaxRenderDistance
-                Line (oX + X, oY + Z)-(oX + X + 1, oY + Z + 1), -LoadedChunksMap(X, Z), BF
+        tP1X = -MaxRenderDistance: tP1Y = -MaxRenderDistance
+        tP2X = MaxRenderDistance: tP2Y = -MaxRenderDistance
+        tP3X = MaxRenderDistance: tP3Y = MaxRenderDistance
+        tP4X = -MaxRenderDistance: tP4Y = MaxRenderDistance
+        P1X = -tP1X * CameraAngleCoSine.X - tP1Y * CameraAngleSine.X
+        P1Y = tP1X * CameraAngleSine.X - tP1Y * CameraAngleCoSine.X
+        P2X = -tP2X * CameraAngleCoSine.X - tP2Y * CameraAngleSine.X
+        P2Y = tP2X * CameraAngleSine.X - tP2Y * CameraAngleCoSine.X
+        P3X = -tP3X * CameraAngleCoSine.X - tP3Y * CameraAngleSine.X
+        P3Y = tP3X * CameraAngleSine.X - tP3Y * CameraAngleCoSine.X
+        P4X = -tP4X * CameraAngleCoSine.X - tP4Y * CameraAngleSine.X
+        P4Y = tP4X * CameraAngleSine.X - tP4Y * CameraAngleCoSine.X
+        Line (oX - P1X, oY - P1Y)-(oX - P2X, oY - P2Y), _RGB32(0)
+        Line (oX - P2X, oY - P2Y)-(oX - P3X, oY - P3Y), _RGB32(0)
+        Line (oX - P3X, oY - P3Y)-(oX - P4X, oY - P4Y), _RGB32(0)
+        Line (oX - P4X, oY - P4Y)-(oX - P1X, oY - P1Y), _RGB32(0)
+        'Line (oX - MaxRenderDistance, oY - MaxRenderDistance)-(oX + MaxRenderDistance, oY + MaxRenderDistance), _RGB32(0), B
+        For X = -RenderDistance To RenderDistance: For Z = -RenderDistance To RenderDistance
+                tX = -X * CameraAngleCoSine.X - Z * CameraAngleSine.X
+                tZ = X * CameraAngleSine.X - Z * CameraAngleCoSine.X
+                Select Case LoadedChunksMap(X, Z)
+                    Case 0: PSet (oX - tX, oY - tZ), _RGB32(127)
+                    Case 1: PSet (oX - tX, oY - tZ), _RGB32(0)
+                    Case 2: PSet (oX - tX, oY - tZ), _RGB32(255, 0, 0)
+                    Case 3: PSet (oX - tX, oY - tZ), _RGB32(0, 255, 0)
+                    Case 4: PSet (oX - tX, oY - tZ), _RGB32(255, 255, 0)
+                    Case 5: PSet (oX - tX, oY - tZ), _RGB32(0, 0, 255)
+                    Case 6: PSet (oX - tX, oY - tZ), _RGB32(255, 0, 255)
+                    Case 7: PSet (oX - tX, oY - tZ), _RGB32(0, 255, 255)
+                End Select
         Next Z, X
+        $Checking:On
     End If
 End Sub
 '----------------------------------------------------------------
@@ -470,21 +506,25 @@ Sub LoadChunks
     Static As Integer LoadChunkX, LoadChunkZ
     Dim As _Unsigned _Byte ChunkToLoad
     Static As Integer Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    Dim As _Unsigned _Byte LOD
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
     Chunk1X = ChunkX - RenderDistance
     Chunk2X = ChunkX + RenderDistance
     Chunk1Z = ChunkZ - RenderDistance
     Chunk2Z = ChunkZ + RenderDistance
     ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Unsigned Long
+    $Checking:Off
     For I = 1 To MAXCHUNKS
         If (Chunk1X <= Chunk(I).X) And (Chunk(I).X <= Chunk2X) And (Chunk1Z <= Chunk(I).Z) And (Chunk(I).Z <= Chunk2Z) Then
-            __T~%% = Chunk(I).LoadedChunkData And Chunk(I).LoadedRenderData
-            If __LoadedChunks(Chunk(I).X, Chunk(I).Z) = 0 Then __LoadedChunks(Chunk(I).X, Chunk(I).Z) = __T~%%
-            ChunkToLoad = -__T~%% - (__T~%% = 0) * ChunkToLoad
+            __T~%% = (Chunk(I).LoadedChunkData <> 0 And Chunk(I).LoadedRenderData <> 0) And (Chunk(I).LevelOfDetail + 1)
+            __LoadedChunks(Chunk(I).X, Chunk(I).Z) = (__T~%% And __LoadedChunks(Chunk(I).X, Chunk(I).Z) = 0) Or __LoadedChunks(Chunk(I).X, Chunk(I).Z)
+            ChunkToLoad = (__T~%% = 0) Or ChunkToLoad
         End If
     Next I
+    $Checking:On
     If ChunkToLoad = 0 Then Exit Sub
     ChunkToLoad = 0
+    $Checking:Off
     For R = 0 To RenderDistance
         __C1X = ChunkX - R
         __C2X = ChunkX + R
@@ -493,24 +533,22 @@ Sub LoadChunks
         For X = __C1X To __C2X
             For Z = __C1Z To __C2Z
                 If __C1X < X And X < __C2X And __C1Z < Z And Z < __C2Z Then _Continue
-                If __LoadedChunks(X, Z) = 0 Then
-                    If ChunkToLoad = 0 Then
-                        ChunkToLoad = 1
-                        LoadChunkX = X
-                        LoadChunkZ = Z
-                    End If
-                    LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 0
-                Else
-                    LoadedChunksMap(X - ChunkX, Z - ChunkZ) = 1
+                LOD = Min(MaxLevelOfDetail, _SHR(R, LevelOfDetailChunkMultiplier))
+                If (__LoadedChunks(X, Z) = 0 Or __LoadedChunks(X, Z) <> LOD + 1) And ChunkToLoad = 0 Then
+                    ChunkToLoad = 1
+                    LoadChunkX = X
+                    LoadChunkZ = Z
                 End If
+                LoadedChunksMap(X - ChunkX, Z - ChunkZ) = __LoadedChunks(X, Z)
             Next Z
         Next X
     Next R
+    $Checking:On
     If ChunkToLoad = 0 Then Exit Sub
     ChunkLoadingStartTime = Timer(0.001)
-    CL = 0 'if Chunk is loaded
-    CL = LoadChunkFile(LoadChunkX, LoadChunkZ)
-    If CL Then
+    LOD = Min(MaxLevelOfDetail, _SHR(Max(Abs(LoadChunkX - ChunkX), Abs(LoadChunkZ - ChunkZ)), LevelOfDetailChunkMultiplier))
+    If LoadChunkFile(LoadChunkX, LoadChunkZ, LOD) Then
+        $Checking:Off
         ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
         'Add to History for graph
         For J = 1 To UBound(ChunkLoadTimeHistory) - 1
@@ -518,6 +556,7 @@ Sub LoadChunks
         Next J
         ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
         MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
+        $Checking:On
     End If
 End Sub
 
@@ -537,25 +576,29 @@ Sub UnLoadChunks
             Chunk(CurrentOffset).ShowTCount = 0
             Chunk(CurrentOffset).LoadedChunkData = 0
             Chunk(CurrentOffset).LoadedRenderData = 0
+            Chunk(CurrentOffset).LevelOfDetail = 0
             LoadedChunks = LoadedChunks - 1
             $Checking:On
         End If
     Next I
 End Sub
-Function ChunkLoader (FoundI, CX As Long, CZ As Long)
+Function ChunkLoader (FoundI, CX As Long, CZ As Long, LOD As _Unsigned _Byte)
     Dim As Integer H, X, Y, Z, A, TreeHeight, XX, ZZ
-    Dim As _Unsigned _Byte canPlaceBlock
+    Dim As _Unsigned _Byte canPlaceBlock, __STEP
     Dim As Long PX, PZ
     If FoundI = 0 Then Exit Function
+    $Checking:Off
     Chunk(FoundI).X = CX
     Chunk(FoundI).Z = CZ
+    PX = CX * 16
+    PZ = CZ * 16
     WipeChunk FoundI
     Chunk(FoundI).MinimumHeight = ChunkHeight
     Chunk(FoundI).MaximumHeight = WaterLevel
+    __STEP = _SHL(1, LOD)
     If WorldFlat = 0 Then
         For X = -3 To 20: For Z = -3 To 20
-                PX = CX * 16
-                PZ = CZ * 16
+                'H = 250 - 0.125 * Sqr((PX + X) * (PX + X) + (PZ + Z) * (PZ + Z))
                 H = getHeight(PX + X, PZ + Z)
                 Biome = getBiome(PX + X, PZ + Z)
                 Select Case Biome
@@ -572,31 +615,18 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
                 End Select
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
-                    $If NOISE3D Then
-                            Chunk(FoundI).MinimumHeight = 1
-                    $Else
-                        Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
-                    $End If
+                    Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
                     Chunk(FoundI).MaximumHeight = Max(Chunk(FoundI).MaximumHeight, H)
                     ChunkData(X, 1, Z, FoundI) = BLOCK_STONE
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
-                        $If NOISE3D Then
-                                If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(Y < Max(H, WaterLevel) - 4, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK))
-                        $Else
-                            ChunkData(X, Y, Z, FoundI) = IIF(Y < H - 4 And H - 4 > WaterLevel, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
-                        $End If
+                        ChunkData(X, Y, Z, FoundI) = IIF(Y < H - 4 And H - 4 > WaterLevel, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                     Next Y
-                    $If NOISE3D Then
-                            If fractal3(PX + X, Y, PZ + Z, NoiseSmoothness, 0, 1) > 0.2 Then ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
-                    $Else
-                        ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
-                    $End If
+                    ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
                     If ChunkData(X, Y, Z, FoundI) = BLOCK_AIR Then _Continue 'No Flying Tree
                 End If
                 '----------------------------------------------------------------
-                If Biome < 4 Then _Continue
-                If H <= WaterLevel Then _Continue
+                If Biome < 4 Or SpawnTrees = 0 Or H <= WaterLevel Or LOD Then _Continue
                 If Int(1000 * fractal2(PX + X, PZ + Z, 7, 0, 1)) <> 800 Then _Continue
                 TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
                 If canPlaceBlock Then
@@ -628,9 +658,12 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long)
         Next Z, X
     End If
     Chunk(FoundI).LoadedChunkData = -1
+    Chunk(FoundI).LevelOfDetail = LOD
+    $Checking:On
     ChunkLoader = -1
 End Function
-Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, FoundI As _Unsigned Integer, CurrentLight As _Unsigned _Byte)
+Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, FoundI As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static
+    $Checking:Off
     Dim As _Byte dX, dY, dZ
     Dim As _Byte side1, side2, corner
     dX = _SHL(CubeVertices(vertexIndex).X, 1) - 1
@@ -639,26 +672,46 @@ Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex 
     corner = Sgn(ChunkData(X + dX, Y + dY, Z + dZ, FoundI))
     side1 = Sgn(ChunkData(X + dX, Y + dY, Z, FoundI))
     side2 = Sgn(ChunkData(X, Y + dY, Z + dZ, FoundI))
+    $Checking:On
     AmbientOcclusion = 255 - 17 * (side1 + side2 + corner + CurrentLight)
 End Function
-Function ChunkReloader (FoundI, CX, CZ)
+Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
     If FoundI = 0 Then Exit Function
-    Chunk(FoundI).LoadedRenderData = -1
     Dim As _Unsigned Long LV, LTV
     Dim As Long PX, PZ
     Dim As _Unsigned Integer X, Y, Z
-    Dim As _Unsigned _Byte Block, Visibility, Light
+    Dim As _Unsigned _Byte Block, Visibility, Light, __STEP
+    $Checking:Off
+    Chunk(FoundI).LoadedRenderData = -1
     LV = (FoundI - 1) * ChunkSectionSize
     LTV = (FoundI - 1) * ChunkSectionSize
     Chunk(FoundI).MinimumHeight = Max(1, Chunk(FoundI).MinimumHeight)
     PX = _SHL(CX, 4)
     PZ = _SHL(CZ, 4)
-    For X = 1 To 16
-        For Z = 1 To 16
-            For Y = Chunk(FoundI).MinimumHeight To Chunk(FoundI).MaximumHeight
+    __STEP = _SHL(1, LOD)
+    For X = 1 To 16 Step __STEP
+        For Z = 1 To 16 Step __STEP
+            For Y = Chunk(FoundI).MaximumHeight To Chunk(FoundI).MinimumHeight Step -1
                 Block = ChunkData(X, Y, Z, FoundI)
                 If Block = BLOCK_AIR Then _Continue
-                Visibility = isTransparent(ChunkData(X + 1, Y, Z, FoundI)) + _SHL(isTransparent(ChunkData(X - 1, Y, Z, FoundI)), 1) + _SHL(isTransparent(ChunkData(X, Y + 1, Z, FoundI)), 2) + _SHL(isTransparent(ChunkData(X, Y - 1, Z, FoundI)), 3) + _SHL(isTransparent(ChunkData(X, Y, Z + 1, FoundI)), 4) + _SHL(isTransparent(ChunkData(X, Y, Z - 1, FoundI)), 5)
+                Select Case LOD
+                    Case 0: Visibility = isTransparent(ChunkData(X + 1, Y, Z, FoundI))
+                        Visibility = Visibility Or _SHL(isTransparent(ChunkData(X - 1, Y, Z, FoundI)), 1)
+                        Visibility = Visibility Or _SHL(isTransparent(ChunkData(X, Y + 1, Z, FoundI)), 2)
+                        Visibility = Visibility Or _SHL(isTransparent(ChunkData(X, Y - 1, Z, FoundI)), 3)
+                        Visibility = Visibility Or _SHL(isTransparent(ChunkData(X, Y, Z + 1, FoundI)), 4)
+                        Visibility = Visibility Or _SHL(isTransparent(ChunkData(X, Y, Z - 1, FoundI)), 5)
+                    Case Else: Visibility = 0
+                        For XX = X To X + __STEP - 1
+                            For ZZ = Z To Z + __STEP - 1
+                                Visibility = Visibility Or isTransparent(ChunkData(XX + 1, Y, ZZ, FoundI))
+                                Visibility = Visibility Or _SHL(isTransparent(ChunkData(XX - 1, Y, ZZ, FoundI)), 1)
+                                Visibility = Visibility Or _SHL(isTransparent(ChunkData(XX, Y + 1, ZZ, FoundI)), 2)
+                                Visibility = Visibility Or _SHL(isTransparent(ChunkData(XX, Y - 1, ZZ, FoundI)), 3)
+                                Visibility = Visibility Or _SHL(isTransparent(ChunkData(XX, Y, ZZ + 1, FoundI)), 4)
+                                Visibility = Visibility Or _SHL(isTransparent(ChunkData(XX, Y, ZZ - 1, FoundI)), 5)
+                        Next ZZ, XX
+                End Select
                 If ChunkData(X, Y + 1, Z, FoundI) = BLOCK_WATER Then
                     If Block = BLOCK_WATER Then
                         Visibility = 0
@@ -676,9 +729,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         FACE%% = _SHL(1, _SHR(I, 2))
                         If (FACE%% And Visibility) = 0 Or BlockFaces(Block, _SHR(I, 2) + 1) = -1 Then _Continue
                         LTV = LTV + 1
-                        TVertices(LTV).X = CubeVertices(I).X + X
+                        TVertices(LTV).X = CubeVertices(I).X * __STEP + X
                         TVertices(LTV).Y = CubeVertices(I).Y + Y
-                        TVertices(LTV).Z = CubeVertices(I).Z + Z
+                        TVertices(LTV).Z = CubeVertices(I).Z * __STEP + Z
                         TTexCoords(LTV).X = CubeTexCoords(I).X
                         TTexCoords(LTV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
                         TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
@@ -691,9 +744,9 @@ Function ChunkReloader (FoundI, CX, CZ)
                         FACE%% = _SHL(1, _SHR(I, 2))
                         If (FACE%% And Visibility) = 0 Then _Continue
                         LV = LV + 1
-                        Vertices(LV).X = CubeVertices(I).X + X
+                        Vertices(LV).X = CubeVertices(I).X * __STEP + X
                         Vertices(LV).Y = CubeVertices(I).Y + Y
-                        Vertices(LV).Z = CubeVertices(I).Z + Z
+                        Vertices(LV).Z = CubeVertices(I).Z * __STEP + Z
                         TexCoords(LV).X = CubeTexCoords(I).X
                         TexCoords(LV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
                         VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
@@ -706,6 +759,7 @@ Function ChunkReloader (FoundI, CX, CZ)
     Chunk(FoundI).ShowCount = Chunk(FoundI).Count
     Chunk(FoundI).ShowTCount = Chunk(FoundI).TCount
     Chunk(FoundI).ShowRenderData = -1
+    $Checking:On
     ChunkReloader = -1
 End Function
 '$Include:'terrain.bas'
