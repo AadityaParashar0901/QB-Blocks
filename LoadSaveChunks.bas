@@ -120,10 +120,12 @@ Sub Settings (__LOAD)
         Get #__F, , FOV
         Get #__F, , RenderDistance
         Get #__F, , FOG
+        Get #__F, , LevelOfDetailChunkMultiplier
     Else
         Put #__F, , FOV
         Put #__F, , RenderDistance
         Put #__F, , FOG
+        Put #__F, , LevelOfDetailChunkMultiplier
     End If
     Close #__F
 End Sub
@@ -133,9 +135,10 @@ Sub Settings_Dialog
         If _Resize Then Screen _NewImage(_ResizeWidth, _ResizeHeight, 32): _PrintMode _KeepBackground
         While _MouseInput: Wend
         Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
-        Slider RenderDistance, _Width / 2, _Height * 0.4, "Render Distance", 1, MaxRenderDistance
+        Slider RenderDistance, _Width / 2, _Height / 2 - 48, "Render Distance", 1, MaxRenderDistance
         TotalChunks = (2 * RenderDistance + 1) ^ 2
         Slider FOV, _Width / 2, _Height * 0.5, "FOV", 70, 110
+        Slider LevelOfDetailChunkMultiplier, _Width / 2, _Height / 2 + 48, "Level of Detail", 0, 4
         If Button(2, _Width / 10, _Height / 10, "") Then Exit Do
         _Display
     Loop Until _KeyDown(27)

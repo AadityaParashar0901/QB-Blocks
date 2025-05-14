@@ -33,7 +33,7 @@ Const True = -1, False = 0
 $Let GL = -1
 
 Dim Shared As _Bit FLYMODE, ZOOM, ShowDebugInfo, isPaused
-Dim Shared As _Byte FOV, FOG, RenderDistance
+Dim Shared As _Byte FOV, FOG, RenderDistance, LevelOfDetailChunkMultiplier
 
 Dim Shared GUI_ASSETS&(1 To 21), GUI_ASSETS_ID: GUI_ASSETS_ID = 1
 Dim Shared WORLDFOLDER$, WorldFlat As _Unsigned _Byte
@@ -44,10 +44,9 @@ Const ChunkLoadingSpeed = 1 '1(Min) -> Fastest, 60(Max) -> Slowest
 Const ChunkHeight = 256
 Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
-Const NoiseSmoothness = 256
+Const NoiseSmoothness = 64
 Const NoiseComplexity = 7 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
 Const MaxLevelOfDetail = 4 '0 ~ 4 Only, Any other value will generate an error
-Const LevelOfDetailChunkMultiplier = 3 '3 ~ 4 Only, this changes how will LOD decrease per render distance. Higher values decrease LOD slowly. Other values aren't working yet
 
 'Terrain Settings
 Const SpawnTrees = 0
@@ -61,7 +60,7 @@ Const ChunkSectionSize = 32 * ChunkHeight
 Const ChunkTSectionSize = 32 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 32 'Setting to 64 will require you to have roughly > 4 GiB Memory
+Const MaxRenderDistance = 48 'Setting to 64 will require you to have roughly > 4 GiB Memory
 'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 272 KiB
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
@@ -108,10 +107,11 @@ Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1 'Graph 
 If _DirExists("saves") = 0 Then MkDir "saves"
 '----------------------------------------------------------------
 'Default Settings
+FOV = 70
+RenderDistance = 8
+FOG = 1
+LevelOfDetailChunkMultiplier = 3
 Settings True
-If FOV = 0 Then FOV = 70
-If RenderDistance = 0 Then RenderDistance = 8
-If FOG = 0 Then FOG = 1
 Settings False
 RenderDistance = Min(RenderDistance, MaxRenderDistance)
 '----------------------------------------------------------------
@@ -533,8 +533,8 @@ Sub LoadChunks
         For X = __C1X To __C2X
             For Z = __C1Z To __C2Z
                 If __C1X < X And X < __C2X And __C1Z < Z And Z < __C2Z Then _Continue
-                LOD = Min(MaxLevelOfDetail, _SHR(R, LevelOfDetailChunkMultiplier))
-                If (__LoadedChunks(X, Z) = 0 Or __LoadedChunks(X, Z) <> LOD + 1) And ChunkToLoad = 0 Then
+                'LOD = Min(MaxLevelOfDetail, _SHR(R, LevelOfDetailChunkMultiplier))
+                If __LoadedChunks(X, Z) = 0 And ChunkToLoad = 0 Then
                     ChunkToLoad = 1
                     LoadChunkX = X
                     LoadChunkZ = Z

@@ -19,6 +19,7 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
     Dim As Double amplitude, total, maxAmplitude, scale
     Dim As Single tX, tY
     Dim As _Byte i
+    $Checking:Off
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -42,12 +43,14 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
         amplitude = amplitude / 2
         scale = scale / 2
     Next i
+    $Checking:On
     fractal2! = total / maxAmplitude
 End Function
 Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte) Static
     Dim As Double amplitude, total, maxAmplitude, scale
     Dim As Single tX, tY, tZ
     Dim As _Byte i
+    $Checking:Off
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -84,5 +87,6 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
         amplitude = amplitude / 2
         scale = scale / 2
     Next i
+    $Checking:On
     fractal3! = total / maxAmplitude
 End Function

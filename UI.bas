@@ -64,7 +64,7 @@ Sub Slider (B As _Unsigned _Byte, X As Integer, Y As Integer, S$, A!, C!)
         _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(11)
         _PutImage (X + T - 8, Y - 20)-(X + T + 7, Y + 19), GUI_ASSETS&(13)
         If _MouseButton(1) Then
-            B = A! + (_MouseX - X + 192) * (C! - A!) / 384
+            B = Clamp(A!, A! + (_MouseX - X + 192) * (C! - A!) / 384, C!)
         End If
     Else
         _PutImage (X - 200, Y - 20)-(X + 199, Y + 19), GUI_ASSETS&(10)

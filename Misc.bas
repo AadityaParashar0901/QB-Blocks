@@ -1,3 +1,4 @@
+$Checking:Off
 Function TS$ (A)
     TS$ = _Trim$(Str$(A))
 End Function
@@ -23,5 +24,6 @@ Function IIF (A, B, C)
     IIF = -B * (A <> 0) - C * (A = 0)
 End Function
 Function MouseInBox (X1, Y1, X2, Y2)
-    MouseInBox = InRange(X1, _MouseX, X2) And InRange(Y1, _MouseY, Y2)
+    MouseInBox = (X1 <= _MouseX) And (_MouseX <= X2) And (Y1 <= _MouseY) And (_MouseY <= Y2)
 End Function
+$Checking:On
