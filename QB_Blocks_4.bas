@@ -294,7 +294,7 @@ Sub COMMAND_PARSE (C$)
             If ListStringGet(TokenList$, 3) <> "~" Then Camera.Y = Val(ListStringGet(TokenList$, 3))
             If ListStringGet(TokenList$, 4) <> "~" Then Camera.Z = Val(ListStringGet(TokenList$, 4))
         Case "rd": RenderDistance = Val(ListStringGet(TokenList$, 2))
-            RenderDistance = IIF(RenderDistance, RenderDistance, Min(8, MaxRenderDistance))
+            RenderDistance = IIF(RenderDistance, Min(MaxRenderDistance, RenderDistance), Min(8, MaxRenderDistance))
         Case "fov": FOV = Val(ListStringGet(TokenList$, 2))
     End Select
 End Sub
