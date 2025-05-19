@@ -60,12 +60,12 @@ Function LoadChunkFile (CX As Long, CZ As Long, LOD As _Unsigned _Byte)
             Get #F, , TMPCHUNKDATA()
             For X = 0 To 17: For Z = 0 To 17: For Y = 0 To ChunkHeight + 1: ChunkData(X, Y, Z, FoundI) = TMPCHUNKDATA(X, Y, Z): Next Y, Z, X
             Close #F
-            LoadChunkFile = ChunkReloader(FoundI, CX, CZ, LOD)
+            LoadChunkFile = FoundI And ChunkReloader(FoundI, CX, CZ, LOD)
         Else
-            LoadChunkFile = ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
+            LoadChunkFile = FoundI And ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
         End If
     Else
-        LoadChunkFile = ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
+        LoadChunkFile = FoundI And ChunkLoader(FoundI, CX, CZ, LOD) And ChunkReloader(FoundI, CX, CZ, LOD)
     End If
     LoadedChunks = LoadedChunks + 1
 End Function

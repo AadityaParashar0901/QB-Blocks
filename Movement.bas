@@ -45,6 +45,10 @@ If _KeyDown(100306) Then 'LCtrl
 Else
     If isBlockFluid(BlockExists(Camera.X, Camera.Y - 1, Camera.Z)) Then MoveSpeed = 2 Else MoveSpeed = 4
 End If
+If _KeyDown(47) Then '/
+    COMMANDMODE = 1
+    __COMMAND$ = ""
+End If
 If FLYMODE = 0 Then
     Camera.Y = Camera.Y + PlayerVelocity.Y / LFPS
     If isTransparent(BlockExists(Camera.X, Camera.Y - PlayerHeight, Camera.Z)) = 0 Then

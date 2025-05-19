@@ -11,10 +11,13 @@ SkyColorGreen = _Green32(SkyColor) / 255
 SkyColorBlue = _Blue32(SkyColor) / 255
 LINEDESIGNINTEGER = _SHR(LINEDESIGNINTEGER, 1) - (LINEDESIGNINTEGER = 1) * 32768
 TMPMAXCHUNKLOADTIME = 0
+TMPMAXCHUNKLOADHEIGHT = 0
 For __I = 1 To UBound(ChunkLoadTimeHistory)
     TMPMAXCHUNKLOADTIME = Max(ChunkLoadTimeHistory(__I), TMPMAXCHUNKLOADTIME)
+    TMPMAXCHUNKLOADHEIGHT = Max(ChunkLoadHeightHistory(__I), TMPMAXCHUNKLOADHEIGHT)
 Next __I
 MaxChunkLoadTime = TMPMAXCHUNKLOADTIME
+MaxChunkLoadHeight = TMPMAXCHUNKLOADHEIGHT
 Return
 Function GetSkyColour& (T As _Unsigned Integer)
     Select Case T Mod 24

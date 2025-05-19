@@ -46,10 +46,10 @@ Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
 Const NoiseSmoothness = 64
 Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
-Const MaxLevelOfDetail = 4 '0 ~ 4 Only, Any other value will generate an error
+Const MaxLevelOfDetail = 0 '0 ~ 4 Only, Any other value will generate an error
 
 'Terrain Settings
-Const SpawnTrees = 0
+Const SpawnTrees = 1
 
 Const PlayerHeight = 1.75
 Const PlayerObesity = 0.5
@@ -60,7 +60,7 @@ Const ChunkSectionSize = 32 * ChunkHeight
 Const ChunkTSectionSize = 32 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
-Const MaxRenderDistance = 48 'Setting to 64 will require you to have roughly > 4 GiB Memory
+Const MaxRenderDistance = 16 'Setting to 64 will require you to have roughly > 4 GiB Memory
 'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 272 KiB
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
@@ -68,7 +68,11 @@ Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _Byte 'To copy one chunk data for loading and saving Chunks
 Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
 Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
-Dim Shared As Integer ChunkLoadTime, MaxChunkLoadTime, ChunkLoadTimeHistory(1 To 80) 'To calculate chunk loading lag
+
+Dim Shared As Integer ChunkLoadTime, ChunkLoadHeight, MaxChunkLoadTime, MaxChunkLoadHeight, ChunkLoadTimeHistory(1 To 80), ChunkLoadHeightHistory(1 To 80) 'To calculate chunk loading lag
+Const TimeHistoryColor = &HFF00FF00
+Const HeightHistoryColor = &HFF0000FF
+
 Dim Shared As _Unsigned Long LoadedChunks, VisibleChunks, QuadsVisible, TQuadsVisible
 Dim Shared As _Unsigned _Byte LoadedChunksMap(-MaxRenderDistance To MaxRenderDistance, -MaxRenderDistance To MaxRenderDistance)
 '----------------------------------------------------------------
@@ -100,7 +104,7 @@ Const Gravity = -20
 Dim Shared Time As Long, SkyColor As Long: Time = 7200 'Sunrise
 Dim As Long PSkyColor, NSkyColor
 Dim Shared As Single SkyColorRed, SkyColorGreen, SkyColorBlue
-Dim Shared SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
+Dim Shared COMMANDMODE As _Byte, __COMMAND$, SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
 Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1 'Graph Border
 '----------------------------------------------------------------
 '$Include:'LoadAssets.bas'
@@ -138,8 +142,8 @@ RePERM Seed
 'Calculate Fade Function Lookup Table
 Dim Shared fade!(0 To 255)
 For I = 0 To 255
-    t! = I / 256
-    fade!(I) = t! * t! * (3 - 2 * t!)
+    T! = I / 256
+    fade!(I) = T! * T! * (3 - 2 * T!)
 Next I
 '----------------------------------------------------------------
 'Initialize Variables, Timers
@@ -160,9 +164,9 @@ PrintString (_Width - FONTWIDTH * Len(T$)) / 2, (_Height - FONTHEIGHT) / 2, "Loa
 ReDim Shared Chunk(1 To MAXCHUNKS) As ChunkType: LoadedChunks = 0
 ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
 T$ = "Generating Chunks": TotalChunks = (2 * Min(4, RenderDistance) + 1) ^ 2
-For R = 0 To Min(4, RenderDistance): For x = ChunkX - R To ChunkX + R: For z = ChunkZ - R To ChunkZ + R
-            If x > ChunkX - R And x < ChunkX + R And z > ChunkZ - R And z < ChunkZ + R Then _Continue
-            t = LoadChunkFile(x, z, 0)
+For R = 0 To Min(4, RenderDistance): For X = ChunkX - R To ChunkX + R: For Z = ChunkZ - R To ChunkZ + R
+            If X > ChunkX - R And X < ChunkX + R And Z > ChunkZ - R And Z < ChunkZ + R Then _Continue
+            T = LoadChunkFile(X, Z, 0)
             If _Resize Then
                 Screen _NewImage(_ResizeWidth, _ResizeHeight, 32)
                 Color _RGB32(255, 255, 255), _RGB32(0, 127)
@@ -173,7 +177,7 @@ For R = 0 To Min(4, RenderDistance): For x = ChunkX - R To ChunkX + R: For z = C
             Line (_Width / 2 - 128, (_Height + FONTHEIGHT) / 2)-(_Width / 2 + 128, (_Height + FONTHEIGHT) / 2 + 4), _RGB32(0, 32), BF
             Line (_Width / 2 - 128, (_Height + FONTHEIGHT) / 2)-(_Width / 2 - 128 + 256 * LoadedChunks / TotalChunks, (_Height + FONTHEIGHT) / 2 + 4), _RGB32(0, 127, 255), BF
             _Display
-Next z, x: Next R
+Next Z, X: Next R
 TotalChunks = (2 * RenderDistance + 1) ^ 2
 '----------------------------------------------------------------
 Timer(FPSCounterTimer) On
@@ -225,26 +229,38 @@ Do
         _Continue
     End If
     '----------------------------------------------------------------
-    'Player Camera Angle
-    MW = 0: While _MouseInput
-        CameraAngle.X = CameraAngle.X + _MouseMovementX / 8
-        CameraAngle.Y = CameraAngle.Y - _MouseMovementY / 8
-        CameraAngle.Y = Clamp(-90, CameraAngle.Y, 90)
-        CameraAngle.X = ClampCycle(-180, CameraAngle.X, 180)
-        CameraAngleSine.X = Sin(_D2R(CameraAngle.X)): CameraAngleSine.Y = Sin(_D2R(CameraAngle.Y))
-        CameraAngleCoSine.X = Cos(_D2R(CameraAngle.X)): CameraAngleCoSine.Y = Cos(_D2R(CameraAngle.Y))
-        CameraDirection.X = CameraAngleSine.X * CameraAngleCoSine.Y
-        CameraDirection.Y = -CameraAngleCoSine.X * CameraAngleCoSine.Y
-        MW = Sgn(MW + _MouseWheel)
-        _MouseMove _Width / 2, _Height / 2
-    Wend
+    If COMMANDMODE = 0 Then
+        'Player Camera Angle
+        MW = 0: While _MouseInput
+            CameraAngle.X = CameraAngle.X + _MouseMovementX / 8
+            CameraAngle.Y = CameraAngle.Y - _MouseMovementY / 8
+            CameraAngle.Y = Clamp(-90, CameraAngle.Y, 90)
+            CameraAngle.X = ClampCycle(-180, CameraAngle.X, 180)
+            CameraAngleSine.X = Sin(_D2R(CameraAngle.X)): CameraAngleSine.Y = Sin(_D2R(CameraAngle.Y))
+            CameraAngleCoSine.X = Cos(_D2R(CameraAngle.X)): CameraAngleCoSine.Y = Cos(_D2R(CameraAngle.Y))
+            CameraDirection.X = CameraAngleSine.X * CameraAngleCoSine.Y
+            CameraDirection.Y = -CameraAngleCoSine.X * CameraAngleCoSine.Y
+            MW = Sgn(MW + _MouseWheel)
+            _MouseMove _Width / 2, _Height / 2
+        Wend
 
-    'Player Block Selection
-    '$Include:'SelectBlock.bas'
-    '----------------------------------------------------------------
-    'Player Movement
-    '$Include:'Movement.bas'
-    '----------------------------------------------------------------
+        'Player Block Selection
+        '$Include:'SelectBlock.bas'
+        '----------------------------------------------------------------
+        'Player Movement
+        '$Include:'Movement.bas'
+        '----------------------------------------------------------------
+    Else
+        K$ = InKey$
+        If Len(K$) Then
+            Select Case Asc(K$)
+                Case 8: __COMMAND$ = Left$(__COMMAND$, Len(__COMMAND$) - 1)
+                Case 13: If Len(__COMMAND$) Then COMMANDMODE = 0: COMMAND_PARSE __COMMAND$
+                Case Else
+                    __COMMAND$ = __COMMAND$ + K$
+            End Select
+        End If
+    End If
 Loop
 System
 
@@ -269,6 +285,20 @@ Resume Next
 '$Include:'GameTick.bas'
 '----------------------------------------------------------------
 
+'$Include:'Tokenizer.bas'
+Sub COMMAND_PARSE (C$)
+    TokenList$ = Tokenizer$(_Trim$(LCase$(C$)))
+    _Echo ListStringPrint(TokenList$)
+    Select Case ListStringGet(TokenList$, 1)
+        Case "tp": If ListStringGet(TokenList$, 2) <> "~" Then Camera.X = Val(ListStringGet(TokenList$, 2))
+            If ListStringGet(TokenList$, 3) <> "~" Then Camera.Y = Val(ListStringGet(TokenList$, 3))
+            If ListStringGet(TokenList$, 4) <> "~" Then Camera.Z = Val(ListStringGet(TokenList$, 4))
+        Case "rd": RenderDistance = Val(ListStringGet(TokenList$, 2))
+            RenderDistance = IIF(RenderDistance, RenderDistance, Min(8, MaxRenderDistance))
+        Case "fov": FOV = Val(ListStringGet(TokenList$, 2))
+    End Select
+End Sub
+
 Sub PlayerMove (Angle As Single, Speed As Single)
     Static As Single dX, dZ
     dX = Cos(_D2R(Angle)) * Speed
@@ -284,8 +314,6 @@ End Sub
 
 $If GL Then
     Sub _GL
-        Dim As _Byte CX, CZ, CPX, CPY, CPZ
-        Dim As Vec2_Float ChunkDirection
         Dim As _Unsigned Long ChunksVisible, __QuadsVisible
         Shared allowGL, __GL_Generate_Texture, __GL_Generate_Sun_Texture, __GL_Generate_Chunks
         Static As Long TextureHandle, SunTextureHandle, MoonTextureHandle, CloudTextureHandle
@@ -306,7 +334,7 @@ $If GL Then
         _glEnable _GL_DEPTH_TEST
         _glClearColor SkyColorRed, SkyColorGreen, SkyColorBlue, 0
         _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
-        '_glTranslatef 0, 0, -0.25
+        _glTranslatef 0, 0, -0.25
         _glRotatef -CameraAngle.Y, 1, 0, 0
         _glRotatef CameraAngle.X, 0, 1, 0
         _glTranslatef 0, -Camera.Y, 0
@@ -390,7 +418,7 @@ $If GL Then
         'Draw Clouds
         _glTranslatef Camera.X, 0, Camera.Z
         _glBindTexture _GL_TEXTURE_2D, CloudTextureHandle
-        X = 0: Y = ChunkHeight * 1.2: Z = Time / 20: S = ChunkHeight * 64
+        X = 0: Y = ChunkHeight * 1.2: Z = Time / 20: S = ChunkHeight * 256
         _glBegin _GL_QUADS: For I = 8 To 11
             _glVertex3f X + (CubeVertices(I).X - 0.5) * S, Y + (CubeVertices(I).Y - 0.5), Z + (CubeVertices(I).Z - 0.5) * S
             _glTexCoord2f CubeTexCoords(I).X, CubeTexCoords(I).Y
@@ -407,6 +435,10 @@ $If GL Then
             ShowInfoData
             _PutImage (_Width / 2, _Height / 2), Cross&
             _PutImage (_Width / 2 - TEXTURESIZE, _Height - TEXTURESIZE * 2)-(_Width / 2 + TEXTURESIZE, _Height - 1), Texture, , (0, BlockFaces(SELECTED_BLOCK, 3) * TEXTURESIZE)-(TEXTURESIZE - 1, (BlockFaces(SELECTED_BLOCK, 3) + 1) * TEXTURESIZE - 1)
+            If COMMANDMODE Then
+                Line (0, _Height - 16)-(_Width, _Height - 1), &H7F000000, BF
+                _PrintString (0, _Height - 16), __COMMAND$ + "_"
+            End If
             _Display
         End If
         GFPSCount = GFPSCount + 1
@@ -452,14 +484,20 @@ Sub ShowInfoData
         ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
         Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
         Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
-        Print "Chunk Load Time:"; ChunkLoadTime; ", Max Chunk Load Time:"; MaxChunkLoadTime
-        Line (_Width - 329, 7)-(_Width - 7, 73), _RGB32(255), B , LINEDESIGNINTEGER
-        Line (_Width - 328, 8)-(_Width - 8, 72), _RGB32(0, 127), BF
-        Line (_Width - 328, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), _RGB32(255)
-        For I = 1 To UBound(ChunkLoadTimeHistory) - 1
-            Line (_Width - 328 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(_Width - 324 + I * 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), _RGB32(255)
-        Next I
         $Checking:Off
+        __X = _Width - 328
+        Line (__X - 1, 7)-(_Width - 7, 73), -1, B , LINEDESIGNINTEGER
+        Line (__X, 8)-(_Width - 8, 72), &H3F000000, BF
+        Line (__X, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), TimeHistoryColor And &HAFFFFFFF
+        Line (__X, 72 - 1024 / MaxChunkLoadHeight)-(_Width - 8, 72 - 1024 / MaxChunkLoadHeight), HeightHistoryColor And &HAFFFFFFF
+        Color TimeHistoryColor, 0: _PrintString (__X, 8), "T:" + _Trim$(Str$(MaxChunkLoadTime))
+        Color HeightHistoryColor: _PrintString (__X, 24), "C:" + _Trim$(Str$(MaxChunkLoadHeight))
+        Color -1, &H7F000000
+        For I = 1 To UBound(ChunkLoadTimeHistory) - 1
+            __X = __X + 4
+            Line (__X, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(__X + 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), TimeHistoryColor And &HAFFFFFFF
+            Line (__X, 72 - 64 * ChunkLoadHeightHistory(I) / MaxChunkLoadHeight)-(__X + 4, 72 - 64 * ChunkLoadHeightHistory(I + 1) / MaxChunkLoadHeight), HeightHistoryColor And &HAFFFFFFF
+        Next I
         oX = _Width - MaxRenderDistance - 32
         oY = 74 + MaxRenderDistance
         tP1X = -MaxRenderDistance: tP1Y = -MaxRenderDistance
@@ -478,7 +516,6 @@ Sub ShowInfoData
         Line (oX - P2X, oY - P2Y)-(oX - P3X, oY - P3Y), _RGB32(0)
         Line (oX - P3X, oY - P3Y)-(oX - P4X, oY - P4Y), _RGB32(0)
         Line (oX - P4X, oY - P4Y)-(oX - P1X, oY - P1Y), _RGB32(0)
-        'Line (oX - MaxRenderDistance, oY - MaxRenderDistance)-(oX + MaxRenderDistance, oY + MaxRenderDistance), _RGB32(0), B
         For X = -RenderDistance To RenderDistance: For Z = -RenderDistance To RenderDistance
                 tX = -X * CameraAngleCoSine.X - Z * CameraAngleSine.X
                 tZ = X * CameraAngleSine.X - Z * CameraAngleCoSine.X
@@ -505,7 +542,8 @@ End Sub
 Sub LoadChunks
     Static As Integer LoadChunkX, LoadChunkZ
     Dim As _Unsigned _Byte ChunkToLoad
-    Static As Integer Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    Static As Integer ChunkX, ChunkZ, Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    Static As Integer ChunkIndex
     Dim As _Unsigned _Byte LOD
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
     Chunk1X = ChunkX - RenderDistance
@@ -522,7 +560,7 @@ Sub LoadChunks
         End If
     Next I
     $Checking:On
-    If ChunkToLoad = 0 Then Exit Sub
+    'If ChunkToLoad = 0 Then Exit Sub
     ChunkToLoad = 0
     $Checking:Off
     For R = 0 To RenderDistance
@@ -533,7 +571,6 @@ Sub LoadChunks
         For X = __C1X To __C2X
             For Z = __C1Z To __C2Z
                 If __C1X < X And X < __C2X And __C1Z < Z And Z < __C2Z Then _Continue
-                'LOD = Min(MaxLevelOfDetail, _SHR(R, LevelOfDetailChunkMultiplier))
                 If __LoadedChunks(X, Z) = 0 And ChunkToLoad = 0 Then
                     ChunkToLoad = 1
                     LoadChunkX = X
@@ -547,15 +584,20 @@ Sub LoadChunks
     If ChunkToLoad = 0 Then Exit Sub
     ChunkLoadingStartTime = Timer(0.001)
     LOD = Min(MaxLevelOfDetail, _SHR(Max(Abs(LoadChunkX - ChunkX), Abs(LoadChunkZ - ChunkZ)), LevelOfDetailChunkMultiplier))
-    If LoadChunkFile(LoadChunkX, LoadChunkZ, LOD) Then
+    ChunkIndex = LoadChunkFile(LoadChunkX, LoadChunkZ, LOD)
+    If ChunkIndex Then
         $Checking:Off
         ChunkLoadTime = Int(1000 * (Timer(0.001) - ChunkLoadingStartTime))
+        ChunkLoadHeight = Chunk(ChunkIndex).MaximumHeight - Chunk(ChunkIndex).MinimumHeight
         'Add to History for graph
+        ChunkLoadTimeHistory(1) = ChunkLoadTime
+        ChunkLoadHeightHistory(1) = ChunkLoadHeight
         For J = 1 To UBound(ChunkLoadTimeHistory) - 1
             Swap ChunkLoadTimeHistory(J), ChunkLoadTimeHistory(J + 1)
+            Swap ChunkLoadHeightHistory(J), ChunkLoadHeightHistory(J + 1)
         Next J
-        ChunkLoadTimeHistory(UBound(ChunkLoadTimeHistory)) = ChunkLoadTime
         MaxChunkLoadTime = Max(MaxChunkLoadTime, ChunkLoadTime)
+        MaxChunkLoadHeight = Max(MaxChunkLoadHeight, ChunkLoadHeight)
         $Checking:On
     End If
 End Sub
@@ -600,19 +642,6 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long, LOD As _Unsigned _Byte)
         For X = -3 To 20: For Z = -3 To 20
                 'H = 250 - 0.125 * Sqr((PX + X) * (PX + X) + (PZ + Z) * (PZ + Z))
                 H = getHeight(PX + X, PZ + Z)
-                Biome = getBiome(PX + X, PZ + Z)
-                Select Case Biome
-                    Case 1: BIOME_SURFACE_BLOCK = BLOCK_STONE
-                        BIOME_UNDERGROUND_BLOCK = BLOCK_STONE
-                    Case 2: BIOME_SURFACE_BLOCK = BLOCK_SAND
-                        BIOME_UNDERGROUND_BLOCK = BLOCK_SANDSTONE
-                    Case 3: BIOME_SURFACE_BLOCK = BLOCK_DIRT
-                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
-                    Case 4: BIOME_SURFACE_BLOCK = BLOCK_GRASS
-                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
-                    Case Else: BIOME_SURFACE_BLOCK = BLOCK_SNOW
-                        BIOME_UNDERGROUND_BLOCK = BLOCK_DIRT
-                End Select
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
                     Chunk(FoundI).MinimumHeight = Min(Chunk(FoundI).MinimumHeight, H - 1)
@@ -620,13 +649,13 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long, LOD As _Unsigned _Byte)
                     ChunkData(X, 1, Z, FoundI) = BLOCK_STONE
                     For Y = 2 To Max(H, WaterLevel) - 1
                         UNDERWATER = H < WaterLevel And Y >= H
-                        ChunkData(X, Y, Z, FoundI) = IIF(Y < H - 4 And H - 4 > WaterLevel, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BIOME_UNDERGROUND_BLOCK)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
+                        ChunkData(X, Y, Z, FoundI) = IIF(Y < H - 4 And H - 4 > WaterLevel, BLOCK_STONE, IIF(UNDERWATER, BLOCK_WATER, BLOCK_DIRT)) 'IIF(H < WaterLevel And Y < H, IIF(Y < Max(H, WaterLevel) - 2, BLOCK_STONE, BLOCK_DIRT), BLOCK_WATER)
                     Next Y
-                    ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BIOME_SURFACE_BLOCK, BLOCK_WATER)
+                    ChunkData(X, Y, Z, FoundI) = IIF(H > WaterLevel, BLOCK_GRASS, BLOCK_WATER)
                     If ChunkData(X, Y, Z, FoundI) = BLOCK_AIR Then _Continue 'No Flying Tree
                 End If
                 '----------------------------------------------------------------
-                If Biome < 4 Or SpawnTrees = 0 Or H <= WaterLevel Or LOD Then _Continue
+                If SpawnTrees = 0 Or H <= WaterLevel Or LOD Then _Continue
                 If Int(1000 * fractal2(PX + X, PZ + Z, 7, 0, 1)) <> 800 Then _Continue
                 TreeHeight = 2 + Int(5 * fractal2(PX + X, PZ + Z, NoiseSmoothness / 4, 0, 2))
                 If canPlaceBlock Then
@@ -772,8 +801,8 @@ Function LoadImage& (FP$)
     Print "Cannot load "; FP$
 End Function
 Sub ChunkRelativeCameraPosition (__Camera As Vec3_Float, __CX As _Byte, __CZ As _Byte, __CPX As _Byte, __CPY As _Byte, __CPZ As _Byte)
-    __CX = Int((__Camera.X - 1) / 16)
-    __CZ = Int((__Camera.Z - 1) / 16)
+    __CX = Int(__Camera.X / 16)
+    __CZ = Int(__Camera.Z / 16)
     __CPX = Int(__Camera.X - __CX * 16)
     __CPY = Int(__Camera.Y)
     __CPZ = Int(__Camera.Z - __CZ * 16)
