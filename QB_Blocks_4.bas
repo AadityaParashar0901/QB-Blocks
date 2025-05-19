@@ -46,7 +46,7 @@ Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
 Const NoiseSmoothness = 64
 Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
-Const MaxLevelOfDetail = 0 '0 ~ 4 Only, Any other value will generate an error
+Const MaxLevelOfDetail = 3 '0 ~ 4 Only, Any other value will generate an error
 
 'Terrain Settings
 Const SpawnTrees = 1
