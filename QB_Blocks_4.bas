@@ -720,9 +720,10 @@ Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
 
     'Calculate Lighting
     For X = 0 To 17: For Z = 0 To 17
+            __TOGGLE` = 0
             For Y = Chunk(FoundI).MaximumHeight + 1 To Chunk(FoundI).MinimumHeight Step -1
-                If ChunkData(X, Y, Z, FoundI) Then Exit For
-                ChunkLight(X, Y, Z, FoundI) = 15 'Brightest
+                __TOGGLE` = ChunkData(X, Y, Z, FoundI) Or __TOGGLE`
+                ChunkLight(X, Y, Z, FoundI) = 15 And (__TOGGLE` = 0) 'Brightest
             Next Y
     Next Z, X
     For I = 15 To 1 Step -1
