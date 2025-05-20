@@ -8,11 +8,6 @@ Type Vec3_Byte: As _Byte X, Y, Z: End Type
 Type Vec3_Float: As Single X, Y, Z: End Type
 Type Vec3_Int: As Integer X, Y, Z: End Type
 
-Type BlockPropertiesType
-    As String * 16 Name
-    As _Unsigned _Byte Model, isTransparent, isFluid
-End Type
-
 Type ChunkType
     As Integer X, Z
     As _Unsigned Long Count, TCount, ShowCount, ShowTCount
@@ -46,7 +41,7 @@ Const GenerationChunkHeight = 256
 Const WaterLevel = GenerationChunkHeight \ 3
 Const NoiseSmoothness = 64
 Const NoiseComplexity = 3 '0 ~ 7 Only, Higher Values will slow down Chunk Loading
-Const MaxLevelOfDetail = 3 '0 ~ 4 Only, Any other value will generate an error
+Const MaxLevelOfDetail = 0 '0 ~ 4 Only, Any other value will generate an error
 
 'Terrain Settings
 Const SpawnTrees = 1
@@ -61,13 +56,14 @@ Const ChunkTSectionSize = 32 * ChunkHeight
 '----------------------------------------------------------------
 Dim Shared TotalChunks As _Unsigned Integer
 Const MaxRenderDistance = 16 'Setting to 64 will require you to have roughly > 4 GiB Memory
-'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 272 KiB
+'Formula for Memory Consumption: total_memory = ((2 * MaxRenderDistance + 1) ^ 2) * 314.47 KiB
 'You can decrease the ChunkHeight to increase this
 Const MAXCHUNKS = (2 * MaxRenderDistance + 1) ^ 2
 '----------------------------------------------------------------
 Dim Shared TMPCHUNKDATA(0 To 17, 0 To ChunkHeight + 1, 0 To 17) As _Unsigned _Byte 'To copy one chunk data for loading and saving Chunks
 Dim Shared Chunk(1 To MAXCHUNKS) As ChunkType 'To store all Chunk Info
 Dim Shared ChunkData(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Byte 'All Chunk Data -> Stores the block ID at the position
+Dim Shared ChunkLight(0 To 17, 0 To ChunkHeight + 1, 0 To 17, 1 To MAXCHUNKS) As _Unsigned _Bit * 4 'Light
 
 Dim Shared As Integer ChunkLoadTime, ChunkLoadHeight, MaxChunkLoadTime, MaxChunkLoadHeight, ChunkLoadTimeHistory(1 To 80), ChunkLoadHeightHistory(1 To 80) 'To calculate chunk loading lag
 Const TimeHistoryColor = &HFF00FF00
@@ -695,18 +691,21 @@ Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex 
     $Checking:Off
     Dim As _Byte dX, dY, dZ
     Dim As _Byte side1, side2, corner
+    Dim As _Byte total
     dX = _SHL(CubeVertices(vertexIndex).X, 1) - 1
     dY = _SHL(CubeVertices(vertexIndex).Y, 1) - 1
     dZ = _SHL(CubeVertices(vertexIndex).Z, 1) - 1
     corner = Sgn(ChunkData(X + dX, Y + dY, Z + dZ, FoundI))
     side1 = Sgn(ChunkData(X + dX, Y + dY, Z, FoundI))
     side2 = Sgn(ChunkData(X, Y + dY, Z + dZ, FoundI))
+    total = side1 + side2 + corner + CurrentLight
+    total = total + (total - 15) * (total > 15)
     $Checking:On
-    AmbientOcclusion = 255 - 17 * (side1 + side2 + corner + CurrentLight)
+    AmbientOcclusion = 255 - 17 * total
 End Function
 Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
     If FoundI = 0 Then Exit Function
-    Dim As _Unsigned Long LV, LTV
+    Dim As _Unsigned Long LV, LTV, I
     Dim As Long PX, PZ
     Dim As _Unsigned Integer X, Y, Z
     Dim As _Unsigned _Byte Block, Visibility, Light, __STEP
@@ -718,6 +717,25 @@ Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
     PX = _SHL(CX, 4)
     PZ = _SHL(CZ, 4)
     __STEP = _SHL(1, LOD)
+
+    'Calculate Lighting
+    For X = 0 To 17: For Z = 0 To 17
+            For Y = Chunk(FoundI).MaximumHeight + 1 To Chunk(FoundI).MinimumHeight Step -1
+                If ChunkData(X, Y, Z, FoundI) Then Exit For
+                ChunkLight(X, Y, Z, FoundI) = 15 'Brightest
+            Next Y
+    Next Z, X
+    For I = 15 To 1 Step -1
+        For X = 1 To 16: For Z = 1 To 16
+                For Y = Chunk(FoundI).MaximumHeight To Chunk(FoundI).MinimumHeight Step -1
+                    If ChunkLight(X, Y, Z, FoundI) Or ChunkData(X, Y, Z, FoundI) Then _Continue
+                    If ChunkLight(X + 1, Y, Z, FoundI) = I Or ChunkLight(X - 1, Y, Z, FoundI) = I Or ChunkLight(X, Y + 1, Z, FoundI) = I Or ChunkLight(X, Y - 1, Z, FoundI) = I Or ChunkLight(X, Y, Z + 1, FoundI) = I Or ChunkLight(X, Y, Z - 1, FoundI) = I Then
+                        ChunkLight(X, Y, Z, FoundI) = I - 1
+                    End If
+                Next Y
+        Next Z, X
+    Next I
+    '------------------
     For X = 1 To 16 Step __STEP
         For Z = 1 To 16 Step __STEP
             For Y = Chunk(FoundI).MaximumHeight To Chunk(FoundI).MinimumHeight Step -1
@@ -748,22 +766,27 @@ Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
                         If Visibility = 0 Then Visibility = 63
                     End If
                 End If
-                Light = 0
-                For YY = Y + 1 To Chunk(FoundI).MaximumHeight
-                    If ChunkData(X, YY, Z, FoundI) Then Light = 5: Exit For
-                Next YY
 
                 If isTransparent(Block) Then
                     For I = 0 To 23
                         FACE%% = _SHL(1, _SHR(I, 2))
                         If (FACE%% And Visibility) = 0 Or BlockFaces(Block, _SHR(I, 2) + 1) = -1 Then _Continue
+                        Select Case _SHR(I, 2)
+                            Case 0: Light = ChunkLight(X + 1, Y, Z, FoundI) - 6
+                            Case 1: Light = ChunkLight(X - 1, Y, Z, FoundI) - 6
+                            Case 2: Light = ChunkLight(X, Y + 1, Z, FoundI)
+                            Case 3: Light = ChunkLight(X, Y - 1, Z, FoundI) - 8
+                            Case 4: Light = ChunkLight(X, Y, Z + 1, FoundI) - 4
+                            Case 5: Light = ChunkLight(X, Y, Z - 1, FoundI) - 4
+                        End Select
+                        Light = 15 - (Light - Light * (Light < 0))
                         LTV = LTV + 1
                         TVertices(LTV).X = CubeVertices(I).X * __STEP + X
                         TVertices(LTV).Y = CubeVertices(I).Y + Y
                         TVertices(LTV).Z = CubeVertices(I).Z * __STEP + Z
                         TTexCoords(LTV).X = CubeTexCoords(I).X
                         TTexCoords(LTV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
-                        TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
+                        TVertexColors(LTV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light)
                         TVertexColors(LTV).Y = TVertexColors(LTV).X
                         TVertexColors(LTV).Z = TVertexColors(LTV).X
                         Chunk(FoundI).TCount = Chunk(FoundI).TCount + 1
@@ -772,13 +795,22 @@ Function ChunkReloader (FoundI, CX, CZ, LOD As _Unsigned _Byte) Static
                     For I = 0 To 23
                         FACE%% = _SHL(1, _SHR(I, 2))
                         If (FACE%% And Visibility) = 0 Then _Continue
+                        Select Case _SHR(I, 2)
+                            Case 0: Light = ChunkLight(X + 1, Y, Z, FoundI) - 6
+                            Case 1: Light = ChunkLight(X - 1, Y, Z, FoundI) - 6
+                            Case 2: Light = ChunkLight(X, Y + 1, Z, FoundI)
+                            Case 3: Light = ChunkLight(X, Y - 1, Z, FoundI) - 8
+                            Case 4: Light = ChunkLight(X, Y, Z + 1, FoundI) - 4
+                            Case 5: Light = ChunkLight(X, Y, Z - 1, FoundI) - 4
+                        End Select
+                        Light = 15 - (Light - Light * (Light < 0))
                         LV = LV + 1
                         Vertices(LV).X = CubeVertices(I).X * __STEP + X
                         Vertices(LV).Y = CubeVertices(I).Y + Y
                         Vertices(LV).Z = CubeVertices(I).Z * __STEP + Z
                         TexCoords(LV).X = CubeTexCoords(I).X
                         TexCoords(LV).Y = (CubeTexCoords(I).Y + BlockFaces(Block, _SHR(I, 2) + 1)) / TOTALTEXTURES
-                        VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light * Sgn(FACE%% And 4) + 4 * Sgn(FACE%% And 48) + 6 * Sgn(FACE%% And 3) + 8 * Sgn(FACE%% And 8))
+                        VertexColors(LV).X = AmbientOcclusion(X, Y, Z, I, FoundI, Light)
                         VertexColors(LV).Y = VertexColors(LV).X
                         VertexColors(LV).Z = VertexColors(LV).Y
                         Chunk(FoundI).Count = Chunk(FoundI).Count + 1
