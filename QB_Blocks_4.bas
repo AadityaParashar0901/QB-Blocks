@@ -102,6 +102,8 @@ Dim As Long PSkyColor, NSkyColor
 Dim Shared As Single SkyColorRed, SkyColorGreen, SkyColorBlue
 Dim Shared COMMANDMODE As _Byte, __COMMAND$, SELECTED_BLOCK As Long: SELECTED_BLOCK = 1
 Dim Shared LINEDESIGNINTEGER As _Unsigned Integer: LINEDESIGNINTEGER = 1 'Graph Border
+
+Dim Shared CHAT$: CHAT$ = ListStringNew$
 '----------------------------------------------------------------
 '$Include:'LoadAssets.bas'
 If _DirExists("saves") = 0 Then MkDir "saves"
@@ -220,7 +222,6 @@ Do
             SavePlayerData
             System
         End If
-        SavePlayerData
         _Display
         _Continue
     End If
@@ -269,11 +270,11 @@ LFPSCount = 0
 Return
 
 ErrHandler:
-_Echo "[Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
+AddToChat "[Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
 Resume Next
 
 GLErrHandler:
-_Echo "[GL Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
+AddToChat "[GL Error" + Str$(Err) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "]"
 Resume Next
 
 '----------------------------------------------------------------
@@ -284,7 +285,8 @@ Resume Next
 '$Include:'Tokenizer.bas'
 Sub COMMAND_PARSE (C$)
     TokenList$ = Tokenizer$(_Trim$(LCase$(C$)))
-    _Echo ListStringPrint(TokenList$)
+    AddToChat C$
+    AddToChat ListStringPrint(TokenList$)
     Select Case ListStringGet(TokenList$, 1)
         Case "tp": If ListStringGet(TokenList$, 2) <> "~" Then Camera.X = Val(ListStringGet(TokenList$, 2))
             If ListStringGet(TokenList$, 3) <> "~" Then Camera.Y = Val(ListStringGet(TokenList$, 3))
@@ -293,6 +295,11 @@ Sub COMMAND_PARSE (C$)
             RenderDistance = IIF(RenderDistance, Min(MaxRenderDistance, RenderDistance), Min(8, MaxRenderDistance))
         Case "fov": FOV = Val(ListStringGet(TokenList$, 2))
     End Select
+End Sub
+
+Sub AddToChat (M$)
+    ListStringAdd CHAT$, M$
+    If ListStringLength(CHAT$) > 8 Then ListStringDelete CHAT$, 1
 End Sub
 
 Sub PlayerMove (Angle As Single, Speed As Single)
@@ -435,6 +442,7 @@ $If GL Then
                 Line (0, _Height - 16)-(_Width, _Height - 1), &H7F000000, BF
                 _PrintString (0, _Height - 16), __COMMAND$ + "_"
             End If
+            ShowChat
             _Display
         End If
         GFPSCount = GFPSCount + 1
@@ -480,20 +488,22 @@ Sub ShowInfoData
         ChunkRelativeCameraPosition Camera, CX, CZ, CPX, CPY, CPZ
         Print Using "Chunk Relative Position: #### #### ### #### ###"; CX; CZ, CPX; CPY; CPZ
         Print "Selected Block:"; Int(RayBlockPos.X); Int(RayBlockPos.Y); Int(RayBlockPos.Z)
+        If InRange(1, CPY, ChunkHeight) Then Print "Light:"; ChunkLight(CPX, CPY, CPZ, 1)
         $Checking:Off
         __X = _Width - 328
         Line (__X - 1, 7)-(_Width - 7, 73), -1, B , LINEDESIGNINTEGER
         Line (__X, 8)-(_Width - 8, 72), &H3F000000, BF
         Line (__X, 72 - 1024 / MaxChunkLoadTime)-(_Width - 8, 72 - 1024 / MaxChunkLoadTime), TimeHistoryColor And &HAFFFFFFF
         Line (__X, 72 - 1024 / MaxChunkLoadHeight)-(_Width - 8, 72 - 1024 / MaxChunkLoadHeight), HeightHistoryColor And &HAFFFFFFF
-        Color TimeHistoryColor, 0: _PrintString (__X, 8), "T:" + _Trim$(Str$(MaxChunkLoadTime))
-        Color HeightHistoryColor: _PrintString (__X, 24), "C:" + _Trim$(Str$(MaxChunkLoadHeight))
-        Color -1, &H7F000000
         For I = 1 To UBound(ChunkLoadTimeHistory) - 1
             __X = __X + 4
             Line (__X, 72 - 64 * ChunkLoadTimeHistory(I) / MaxChunkLoadTime)-(__X + 4, 72 - 64 * ChunkLoadTimeHistory(I + 1) / MaxChunkLoadTime), TimeHistoryColor And &HAFFFFFFF
             Line (__X, 72 - 64 * ChunkLoadHeightHistory(I) / MaxChunkLoadHeight)-(__X + 4, 72 - 64 * ChunkLoadHeightHistory(I + 1) / MaxChunkLoadHeight), HeightHistoryColor And &HAFFFFFFF
         Next I
+        __X = _Width - 328
+        Color TimeHistoryColor, 0: _PrintString (__X, 8), "T:" + _Trim$(Str$(MaxChunkLoadTime))
+        Color HeightHistoryColor: _PrintString (__X, 24), "C:" + _Trim$(Str$(MaxChunkLoadHeight))
+        Color -1, &H7F000000
         oX = _Width - MaxRenderDistance - 32
         oY = 74 + MaxRenderDistance
         tP1X = -MaxRenderDistance: tP1Y = -MaxRenderDistance
@@ -529,6 +539,15 @@ Sub ShowInfoData
         $Checking:On
     End If
 End Sub
+
+Sub ShowChat
+    __L~& = ListStringLength(CHAT$)
+    __H~& = _Height - __L~& * _FontHeight - _FontHeight
+    For __I~& = 1 To ListStringLength(CHAT$)
+        _PrintString (0, __H~&), ListStringGet(CHAT$, __I~&)
+        __H~& = __H~& + _FontHeight
+    Next __I~&
+End Sub
 '----------------------------------------------------------------
 
 'Noise Functions
@@ -536,17 +555,19 @@ End Sub
 '----------------------------------------------------------------
 
 Sub LoadChunks
-    Static As Integer LoadChunkX, LoadChunkZ
+    Static As Long LoadChunkX, LoadChunkZ
+    Dim As Long __X, __Z
     Dim As _Unsigned _Byte ChunkToLoad
-    Static As Integer ChunkX, ChunkZ, Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
-    Static As Integer ChunkIndex
-    Dim As _Unsigned _Byte LOD
+    Dim As Long ChunkX, ChunkZ, Chunk1X, Chunk2X, Chunk1Z, Chunk2Z
+    Dim As _Unsigned Long __LoadedChunksCount
+    Dim As Integer ChunkIndex
+    Dim As _Unsigned _Byte LOD, __R
     ChunkX = Int(Camera.X / 16): ChunkZ = Int(Camera.Z / 16)
     Chunk1X = ChunkX - RenderDistance
     Chunk2X = ChunkX + RenderDistance
     Chunk1Z = ChunkZ - RenderDistance
     Chunk2Z = ChunkZ + RenderDistance
-    ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Unsigned Long
+    ReDim __LoadedChunks(Chunk1X To Chunk2X, Chunk1Z To Chunk2Z) As _Unsigned _Byte
     $Checking:Off
     For I = 1 To MAXCHUNKS
         If (Chunk1X <= Chunk(I).X) And (Chunk(I).X <= Chunk2X) And (Chunk1Z <= Chunk(I).Z) And (Chunk(I).Z <= Chunk2Z) Then
@@ -556,7 +577,7 @@ Sub LoadChunks
         End If
     Next I
     $Checking:On
-    'If ChunkToLoad = 0 Then Exit Sub
+    If ChunkToLoad = 0 Then Exit Sub
     ChunkToLoad = 0
     $Checking:Off
     For R = 0 To RenderDistance
