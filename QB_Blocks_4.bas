@@ -577,7 +577,7 @@ Sub LoadChunks
         End If
     Next I
     $Checking:On
-    If ChunkToLoad = 0 Then Exit Sub
+    'If ChunkToLoad = 0 Then Exit Sub
     ChunkToLoad = 0
     $Checking:Off
     For R = 0 To RenderDistance
