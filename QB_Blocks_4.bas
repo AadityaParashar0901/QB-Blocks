@@ -657,7 +657,6 @@ Function ChunkLoader (FoundI, CX As Long, CZ As Long, LOD As _Unsigned _Byte)
     __STEP = _SHL(1, LOD)
     If WorldFlat = 0 Then
         For X = -3 To 20: For Z = -3 To 20
-                'H = 250 - 0.125 * Sqr((PX + X) * (PX + X) + (PZ + Z) * (PZ + Z))
                 H = getHeight(PX + X, PZ + Z)
                 canPlaceBlock = InRange(0, X, 17) And InRange(0, Z, 17)
                 If canPlaceBlock Then
