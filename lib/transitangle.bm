@@ -1,0 +1,13 @@
+Function TransitAngle (Angle As Single, FinalAngle As Single, MaxTurnRate As Single)
+    Static As Single d, dT
+    d = FinalAngle - Angle
+    If Abs(d) < MaxTurnRate Then dT = Sgn(d) * Abs(d) Else dT = Sgn(d) * MaxTurnRate
+    If Abs(d) > 180 Then
+        d = Angle - dT
+    Else
+        d = Angle + dT
+    End If
+    If d < 0 Then d = 360 + d
+    If d > 359 Then d = d - 360
+    TransitAngle = d
+End Function

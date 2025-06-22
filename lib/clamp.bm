@@ -1,0 +1,9 @@
+Function Clamp (A, B, C)
+    Clamp = B - (A - B) * (B < A) - (C - B) * (C < B)
+End Function
+Function ClampCycle (A, B, C)
+    ClampCycle = B - (C - B) * (B < A) - (A - B) * (C < B)
+End Function
+Function ClampCycleDifference (A, B, C)
+    ClampCycleDifference = B - C * (B < A) - A * (C < B)
+End Function

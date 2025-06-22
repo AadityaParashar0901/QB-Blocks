@@ -1,0 +1,12 @@
+texture_size = 16;
+total_textures = 3;
+total_blocks = 2;
+textures {
+	grass_block_top;
+	grass_block_side;
+	dirt;
+}
+blocks {
+	name = "grass", textures = [2, 2, 1, 3, 2, 2];
+	name = "dirt", textures = 3;
+}

@@ -1,0 +1,3 @@
+Function ModFloor (A, B)
+    ModFloor = A - B * Int(A / B)
+End Function

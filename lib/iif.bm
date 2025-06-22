@@ -1,0 +1,3 @@
+Function IIF (A, B, C)
+    IIF = -B * (A <> 0) - C * (A = 0)
+End Function

@@ -1,0 +1,3 @@
+Function InRange (A, B, C)
+    InRange = (A <= B) And (B <= C)
+End Function

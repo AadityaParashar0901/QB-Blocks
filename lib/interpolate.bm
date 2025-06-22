@@ -1,0 +1,3 @@
+Function interpolate! (A!, B!, C!)
+    interpolate! = A! + (B! - A!) * C!
+End Function

@@ -1,0 +1,6 @@
+Function Max (A, B)
+    Max = -A * (A > B) - B * (A <= B)
+End Function
+Function MaxAbs (A, B)
+    MaxAbs = -A * (Abs(A) > Abs(B)) - B * (Abs(A) <= Abs(B))
+End Function
