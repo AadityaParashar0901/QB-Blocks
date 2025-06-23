@@ -19,11 +19,14 @@ For I = 1 To ListStringLength(FileContents)
                     Write_Log "Total Textures:" + Str$(TotalTextures)
                 Case "total_blocks": I = I + 2
                     Type BlockData
-                        As String * 10 Name
+                        As String * 32 Name
                         As String * 6 Faces
+                        As _Unsigned _Byte Transparent
                     End Type
                     TotalBlocks = Val(ListStringGet(FileContents, I))
                     ReDim Blocks(1 To TotalBlocks) As BlockData
+                    ReDim isTransparent(0 To TotalBlocks) As _Unsigned _Bit
+                    isTransparent(0) = 1
                     CurrentBlockID = 1
                     Write_Log "Total Blocks:" + Str$(TotalBlocks)
                 Case "textures": CurrentMode = 1: I = I + 1
@@ -51,7 +54,9 @@ For I = 1 To ListStringLength(FileContents)
                         Case Else
                             Blocks(CurrentBlockID).Faces = String$(6, Val(ListStringGet(FileContents, I)))
                     End Select
-                    Write_Log "Blocks Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
+                    Write_Log "Block Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
+                Case "transparent": Blocks(CurrentBlockID).Transparent = -1
+                    Write_Log "Block is transparent"
             End Select
     End Select
 Next I

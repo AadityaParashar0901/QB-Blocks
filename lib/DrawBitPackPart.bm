@@ -1,0 +1,12 @@
+Sub DrawBitPackPart (__IMAGE$, __OX%, __OY%, __COLOR&, __I1X%, __I1Y%, __I2X%, __I2Y%)
+    If Left$(__IMAGE$, 2) <> "BP" Or Len(__IMAGE$) < 6 Then Exit Sub
+    __WIDTH% = CVI(Mid$(__IMAGE$, 3, 2))
+    __HEIGHT% = CVI(Mid$(__IMAGE$, 5, 2))
+    $Checking:Off
+    For __X% = __I1X% To __I2X%
+        For __Y% = __I1Y% To __I2Y%
+            __K~& = 48 + __X% * __HEIGHT% + __Y%
+            PSet (__OX% - __I1X% + __X%, __OY% - __I1Y% + __Y%), __COLOR& And _ReadBit(Asc(__IMAGE$, 1 + _SHR(__K~&, 3)), __K~& Mod 8)
+    Next __Y%, __X%
+    $Checking:On
+End Sub

@@ -9,3 +9,10 @@ Added FPSCounter, ErrHandlers
 Added Movement for Entities  
 Added Chunk Loading Queue  
 Added Debugging, Logging Commands  
+
+## 23 June 2025
+Works...
+Added RenderDistance, calculated memory usage  
+Added Basic Chunk System  
+Created function for drawing text with font  
+Currently Draws 1 Chunk, for testing  
