@@ -16,3 +16,11 @@ Added RenderDistance, calculated memory usage
 Added Basic Chunk System  
 Created function for drawing text with font  
 Currently Draws 1 Chunk, for testing  
+
+## 24 June 2025
+Works...
+Improved Chunk System - Chunk Loading and Unloading  
+Added 3D Noise  
+Added Debug info for showing total chunks loaded, visible and total quads visible  
+Added Ambient Occlusion  
+Added Simple but interesting terrain generation  

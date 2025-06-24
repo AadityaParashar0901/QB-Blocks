@@ -1,12 +1,18 @@
 texture_size = 16;
-total_textures = 3;
-total_blocks = 2;
+total_textures = 6;
+total_blocks = 5;
 textures {
 	grass_block_top;
 	grass_block_side;
 	dirt;
+	stone;
+	netherrack;
+	end_stone;
 }
 blocks {
 	name = "grass", textures = [2, 2, 1, 3, 2, 2];
 	name = "dirt", textures = 3;
+	name = "stone", textures = 4;
+	name = "netherrack", textures = 5;
+	name = "end_stone", textures = 6;
 }
