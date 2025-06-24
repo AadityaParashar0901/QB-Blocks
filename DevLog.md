@@ -23,4 +23,7 @@ Improved Chunk System - Chunk Loading and Unloading
 Added 3D Noise  
 Added Debug info for showing total chunks loaded, visible and total quads visible  
 Added Ambient Occlusion  
-Added Simple but interesting terrain generation  
+Added Complex terrain generation  
+Added Biomes  
+Added Tons of blocks, and efficient block management  
+Added Dynamic Skycolor  

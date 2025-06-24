@@ -1,6 +1,4 @@
 texture_size = 16;
-total_textures = 6;
-total_blocks = 5;
 textures {
 	grass_block_top;
 	grass_block_side;
@@ -8,6 +6,21 @@ textures {
 	stone;
 	netherrack;
 	end_stone;
+	coal_ore;
+	iron_ore;
+	gold_ore;
+	lapis_ore;
+	diamond_ore;
+	snow;
+	grass_block_snow;
+	sand;
+	magma;
+	lava_still;
+	ancient_debris_side;
+	ancient_debris_top;
+	sandstone;
+	sandstone_bottom;
+	sandstone_top;
 }
 blocks {
 	name = "grass", textures = [2, 2, 1, 3, 2, 2];
@@ -15,4 +28,15 @@ blocks {
 	name = "stone", textures = 4;
 	name = "netherrack", textures = 5;
 	name = "end_stone", textures = 6;
+	name = "coal_ore", textures = 7, transparent;
+	name = "iron_ore", textures = 8, transparent;
+	name = "gold_ore", textures = 9, transparent;
+	name = "lapis_ore", textures = 10, transparent;
+	name = "diamond_ore", textures = 11, transparent;
+	name = "snow", textures = [13, 13, 12, 3, 13, 13];
+	name = "sand", textures = 14;
+	name = "magma", textures = 15;
+	name = "lava", textures = 16;
+	name = "ancient_debris", textures = [17, 17, 18, 18, 17, 17], transparent;
+	name = "sandstone", textures = [19, 19, 21, 20, 19, 19];
 }

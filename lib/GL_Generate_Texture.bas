@@ -7,6 +7,6 @@ Sub GL_Generate_Texture (Handle As Long, Image As Long)
     _MemFree M
     _FreeImage Image
     Image = 0
-    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_NEAREST
+    _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MIN_FILTER, _GL_LINEAR
     _glTexParameteri _GL_TEXTURE_2D, _GL_TEXTURE_MAG_FILTER, _GL_NEAREST
 End Sub

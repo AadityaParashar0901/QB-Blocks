@@ -1,0 +1,16 @@
+Function ByteToHex$ (__A~%%)
+    __H$ = Hex$(__A~%%)
+    ByteToHex$ = String$(2 - Len(__H$), 48) + __H$
+End Function
+Function IntegerToHex$ (__A~%)
+    __H$ = Hex$(__A~%)
+    IntegerToHex$ = String$(4 - Len(__H$), 48) + __H$
+End Function
+Function LongToHex$ (__A~&)
+    __H$ = Hex$(__A~&)
+    LongToHex$ = String$(8 - Len(__H$), 48) + __H$
+End Function
+Function Integer64ToHex$ (__A~&&)
+    __H$ = Hex$(__A~&&)
+    Integer64ToHex$ = String$(16 - Len(__H$), 48) + __H$
+End Function
