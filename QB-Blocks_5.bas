@@ -5,6 +5,8 @@ $Resize:On
 
 _Console On
 
+'Open "log.txt" For Output As #100 'Open Log File
+
 '--- Type ---
 '$Include:'Vectors.bi'
 Type Entity
@@ -17,7 +19,7 @@ End Type
 
 '--- Game Build Settings ---
 Const MaxRenderDistance = 16
-Const WaterLevel = 63
+Const WaterLevel = 127
 '---------------------------
 Const MaxRenderDistanceX = MaxRenderDistance + 1
 Const MaxRenderDistanceY = -(MaxRenderDistance <= 8) * (MaxRenderDistance + 1) - (MaxRenderDistance > 8) * 9
@@ -41,9 +43,9 @@ Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
 Dim Shared As _Unsigned _Byte RenderDistanceX, RenderDistanceY, RenderDistanceZ
 Fov = 90
 Fog = -1
-RenderDistance = 16
+RenderDistance = 8
 RenderDistanceX = RenderDistance
-RenderDistanceY = Min(RenderDistance, 4)
+RenderDistanceY = Min(RenderDistance, 8)
 RenderDistanceZ = RenderDistance
 '-----------------------------
 
@@ -161,15 +163,9 @@ While GL_CURRENT_STATE: Wend
 '--------------
 
 '--- Noise ---
+Dim Shared Seed As _Unsigned Long
 Randomize Timer
-Dim Shared perm2(0 To 255, 0 To 255, 0 To 7) As Single
-Dim Shared perm3(0 To 15, 0 To 15, 0 To 15, 0 To 7) As Single
-RePERM Rnd * 65536
-Dim Shared fade!(0 To 255)
-For I = 0 To 255
-    T! = I / 256
-    fade!(I) = T! * T! * (3 - 2 * T!)
-Next I
+Seed = Rnd * 4294967296
 '-------------
 
 '--- Font ---
@@ -261,7 +257,8 @@ Do
             LoadedChunks(Chunks(I).X, Chunks(I).Y, Chunks(I).Z) = I
             tmpTotalChunksLoaded = tmpTotalChunksLoaded + 1
         Else 'Unload Chunks
-            Chunks(I).DataLoaded = 0 'Chunks(I).DataLoaded And 1
+            Chunks(I).DataLoaded = 0
+            Chunks(I).VerticesCount = 0
         End If
     Next I
     TotalChunksLoaded = tmpTotalChunksLoaded
@@ -269,13 +266,13 @@ Do
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksEnd.X = PlayerChunk.X + R
-        MinR_Y = Min(R, 4)
+        MinR_Y = Min(R, 8)
         tmpChunksStart.Y = PlayerChunk.Y - MinR_Y
         tmpChunksEnd.Y = PlayerChunk.Y + MinR_Y
         tmpChunksStart.Z = PlayerChunk.Z - R
         tmpChunksEnd.Z = PlayerChunk.Z + R
-        For X = tmpChunksStart.X To tmpChunksEnd.X
-            For Y = tmpChunksStart.Y To tmpChunksEnd.Y
+        For Y = tmpChunksStart.Y To tmpChunksEnd.Y
+            For X = tmpChunksStart.X To tmpChunksEnd.X
                 For Z = tmpChunksStart.Z To tmpChunksEnd.Z
                     If LoadedChunks(X, Y, Z) = 0 Then
                         LoadChunk.X = X
@@ -284,7 +281,7 @@ Do
                         LoadChunk~` = 1
                         GoTo __CHUNK_LOAD_EXIT_FOR
                     End If
-    Next Z, Y, X, R
+    Next Z, X, Y, R
     __CHUNK_LOAD_EXIT_FOR:
     $Checking:On
     '------------------
@@ -292,23 +289,23 @@ Do
     $Checking:Off
     If LoadChunk~` And ChunkID > 0 Then
         Select Case Chunks(ChunkID).DataLoaded And (Chunks(ChunkID).X = LoadChunk.X And Chunks(ChunkID).Y = LoadChunk.Y And Chunks(ChunkID).Z = LoadChunk.Z)
-            Case 0
+            Case 0 '    Load Chunk Data
                 PX = LoadChunk.X * 16
                 PY = LoadChunk.Y * 16
                 PZ = LoadChunk.Z * 16
-                '    Load Chunk Data
-                For X = 0 To 17
-                    For Y = 0 To 17
+                TransparentBlocksCount = 0
+                For Y = 0 To 17
+                    For X = 0 To 17
                         For Z = 0 To 17
-                            Block~%% = GetBlock~%%(PX + X, PY + Y, PZ + Z)
-                            ChunksData(X, Y, Z, ChunkID).Block = Block~%%
-                Next Z, Y, X
+                            ChunksData(X, Y, Z, ChunkID).Block = GetBlock~%%(PX + X, PY + Y, PZ + Z)
+                            TransparentBlocksCount = TransparentBlocksCount + isTransparent(ChunksData(X, Y, Z, ChunkID).Block)
+                Next Z, X, Y
                 Chunks(ChunkID).X = LoadChunk.X
                 Chunks(ChunkID).Y = LoadChunk.Y
                 Chunks(ChunkID).Z = LoadChunk.Z
-                'Write_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Y) + Str$(Chunks(ChunkID).Z)
-                Chunks(ChunkID).DataLoaded = 2
-            Case 2: '    Load Render Data
+                File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Y) + Str$(Chunks(ChunkID).Z)
+                Chunks(ChunkID).DataLoaded = 1 - 2 * (TransparentBlocksCount = 0)
+            Case 1: '    Load Render Data
                 VertexID = ChunkDataSize * (ChunkID - 1)
                 Chunks(ChunkID).VerticesCount = 0
                 For X = 1 To 16
@@ -335,7 +332,7 @@ Do
                                 VertexID = VertexID + 1
                             Next I
                 Next Z, Y, X
-                'Write_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount)
+                File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount)
                 Chunks(ChunkID).DataLoaded = 3
                 LoadChunk~` = 0
                 TotalChunksLoaded = TotalChunksLoaded + 1
@@ -350,8 +347,9 @@ Loop
 '--- Free Assets ---
 GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
 While GL_CURRENT_STATE: Wend
-System
 '-------------------
+Close #100 'Close Log File
+System
 
 '$Include:'FPSCounter.bas'
 '$Include:'ErrHandlers.bas'
@@ -397,6 +395,7 @@ Sub _GL
             _glViewport 0, 0, _Width - 1, _Height - 1
             _glEnable _GL_BLEND
             _glEnable _GL_DEPTH_TEST
+            _glEnable _GL_CULL_FACE
             _glClearColor SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1
             _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
             _glTranslatef 0, 0, 0
@@ -405,9 +404,9 @@ Sub _GL
             _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
-            _gluPerspective Fov, _Width / _Height, 0.01, 1024
+            _gluPerspective Fov, _Width / _Height, 0.1, 1024
             _glMatrixMode _GL_MODELVIEW
-            _glCullFace _GL_TRUE
+            _glCullFace _GL_BACK
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
             _glEnableClientState _GL_VERTEX_ARRAY
@@ -418,7 +417,7 @@ Sub _GL
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             For I = 1 To MaxChunks
-                If Chunks(I).VerticesCount = 0 And (Chunks(I).DataLoaded And 1) = 0 Then _Continue
+                If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 3 Then _Continue
                 J = I - 1
                 _glPushMatrix
                 _glTranslatef 16 * Chunks(I).X, 16 * Chunks(I).Y, 16 * Chunks(I).Z
@@ -494,91 +493,19 @@ Function getBlockID~% (BlockName$) Static
     Hash~%% = getHash~%%(BlockName$)
     If BlockHashTable_Length(Hash~%%) = 1 Then getBlockID~% = CVI(BlockHashTable_Code(Hash~%%)): Exit Function
     Search~% = ListStringSearch(BlockHashTable_List(Hash~%%), BlockName$)
-    If Search~% = 0 Then Exit Function
+    If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
 Function GetBlock~%% (X As Long, Y As Long, Z As Long) Static
     $Checking:Off
-    Dim As Integer NetherCeiling, MiddleHeight, Height
+    Dim As Integer Height, SurfaceHeight
     Dim OreProbability!
-    Dim As Single CoalProbability, IronProbability, GoldProbability, LapisProbability, DiamondProbability
-    Dim As _Unsigned _Byte Biome, SurfaceBlock, MiddleBlock, LowerBlock
-    NetherCeiling = fractal2(X, Z, 64, 7, 1) * 1024 - 1024
+    Height = fractal2(X, Z, 256, 7, 0) * 256 + 128
+    SurfaceHeight = Height - fractal2(X, Z, 256, 7, 1) * 4
     Select Case Y
-        Case Is < -2048 'Below Nether
-            GetBlock~%% = getBlockID("lava")
-        Case -2048 To -1281 'Lower Nether
-            OreProbability! = fractal3(X, Y - 2048, Z, 16, 3, 0) * (Y - 2048) / 768
-            If OreProbability! < 0.5 Then
-                GetBlock~%% = getBlockID("ancient_debris")
-            Else
-                GetBlock~%% = getBlockID("netherrack")
-            End If
-        Case -1280 To -1217 'Nether - Lava Pools
-            LavaProbability! = fractal3(X, Y - 2048, Z, 16, 3, 1)
-            If LavaProbability! > 0.75 Then
-                GetBlock~%% = getBlockID("lava")
-            Else
-                GetBlock~%% = getBlockID("netherrack")
-            End If
-        Case -1216 To NetherCeiling - 1 'Middle Nether
-            GetBlock~%% = getBlockID("netherrack")
-        Case NetherCeiling To -257 'Upper Nether
-            GetBlock~%% = 0 'air
-        Case -256 To -1 'Lower Overworld
-            OreProbability! = fractal3(X, Y - 256, Z, 16, 3, 2) * (Y - 256) / 256
-            CoalProbability = IIF(Y < -224, 0.55, 0.53)
-            IronProbability = IIF(Y < -224, 0.63, 0.61)
-            GoldProbability = IIF(Y < -224, 0.73, 0.71)
-            LapisProbability = IIF(Y < -224, 0.86, 0.83)
-            DiamondProbability = IIF(Y < -224, 0.92, 0.91)
-            Select Case 1 - OreProbability!
-                Case 0.5 To CoalProbability: GetBlock~%% = getBlockID("coal_ore")
-                Case 0.6 To IronProbability: GetBlock~%% = getBlockID("iron_ore")
-                Case 0.7 To GoldProbability: GetBlock~%% = getBlockID("gold_ore")
-                Case 0.8 To LapisProbability: GetBlock~%% = getBlockID("lapis_ore")
-                Case 0.9 To DiamondProbability: GetBlock~%% = getBlockID("diamond_ore")
-            End Select
-        Case 0 To 63 'Middle Overworld
-            OreProbability! = fractal3(X, Y - 256, Z, 16, 3, 2) * Y / 64
-            CoalProbability = IIF(Y < 32, 0.53, 0.51)
-            IronProbability = IIF(Y < 32, 0.61, 0.6)
-            GoldProbability = IIF(Y < 32, 0.71, 0.7)
-            LapisProbability = IIF(Y < 32, 0.83, 0.82)
-            Select Case 1 - OreProbability!
-                Case 0.5 To CoalProbability: GetBlock~%% = getBlockID("coal_ore")
-                Case 0.6 To IronProbability: GetBlock~%% = getBlockID("iron_ore")
-                Case 0.7 To GoldProbability: GetBlock~%% = getBlockID("gold_ore")
-                Case 0.8 To LapisProbability: GetBlock~%% = getBlockID("lapis_ore")
-            End Select
-        Case 64 To 384 'Upper Overworld
-            Biome = Int(fractal2(X, Z, 64, 2, 7) * 3)
-            Select Case Biome
-                Case 0 'Plains
-                    Height = Int(fractal2(X, Z, 128, 1, 0) * 320) + 64
-                    SurfaceBlock = getBlockID("grass")
-                    MiddleBlock = getBlockID("dirt")
-                    LowerBlock = getBlockID("stone")
-                Case 1 'Desert
-                    Height = Int(fractal2(X, Z, 128, 2, 0) * 320) + 64
-                    SurfaceBlock = getBlockID("sand")
-                    MiddleBlock = getBlockID("sandstone")
-                    LowerBlock = getBlockID("stone")
-                Case 2 'Snow
-                    Height = Int(fractal2(X, Z, 128, 3, 0) * 320) + 64
-                    SurfaceBlock = getBlockID("snow")
-                    MiddleBlock = getBlockID("dirt")
-                    LowerBlock = getBlockID("stone")
-            End Select
-            CaveOpenings~` = InRange(0.59, fractal3(X, Y, Z, 32, 3, 0), 0.63) = 0
-            MiddleHeight = Height - fractal2(X, Z, 128, 0, 3) * 4
-            Select Case Y
-                Case Height: If CaveOpenings~` Then GetBlock~%% = SurfaceBlock
-                Case MiddleHeight To Height - 1: If CaveOpenings~` Then GetBlock~%% = MiddleBlock
-                Case Is < MiddleHeight: GetBlock~%% = LowerBlock
-            End Select
-        Case 960 To 1024 'Middle End
-            If Abs(Y - 992) / 32 * fractal3(X, Y, Z, 32, 7, 0) > 0.75 Then GetBlock~%% = getBlockID("end_stone")
+        Case Is < SurfaceHeight - 1: GetBlock~%% = getBlockID("stone")
+        Case SurfaceHeight To Height - 1: GetBlock~%% = getBlockID("dirt")
+        Case Height: GetBlock~%% = getBlockID("grass")
     End Select
     $Checking:On
 End Function
@@ -587,7 +514,13 @@ Function LoadAsset& (FILE$)
     Write_Log "Cannot Load: " + FILE$
 End Function
 Sub Write_Log (Log$)
-    If Asc(Log$, 1) = 1 Then _Echo ListStringPrint(Log$) Else _Echo Log$
+    If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
+    _Echo T$
+    'Print #100, T$
+End Sub
+Sub File_Log (Log$)
+    If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
+    'Print #100, T$
 End Sub
 Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Dim As _Unsigned Long I
@@ -599,18 +532,19 @@ Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Next I
 End Sub
 '--- Libraries ---
-'$Include:'lib\noise.bm'
-'$Include:'lib\GL_Generate_Texture.bas'
-'$Include:'lib\Tokenizer.bas'
-'$Include:'lib\LoadBitPack.bm'
-'$Include:'lib\DrawBitPackPart.bm'
-'$Include:'lib\clamp.bm'
-'$Include:'lib\iif.bm'
-'$Include:'lib\inrange.bm'
-'$Include:'lib\interpolate.bm'
-'$Include:'lib\max.bm'
-'$Include:'lib\min.bm'
-'$Include:'lib\modfloor.bm'
-'$Include:'lib\transitangle.bm'
-'$Include:'lib\hex.bm'
+'$Include:'lib/noise.bm'
+'$Include:'lib/GL_Generate_Texture.bas'
+'$Include:'lib/Tokenizer.bas'
+'$Include:'lib/LoadBitPack.bm'
+'$Include:'lib/DrawBitPackPart.bm'
+'$Include:'lib/clamp.bm'
+'$Include:'lib/iif.bm'
+'$Include:'lib/inrange.bm'
+'$Include:'lib/interpolate.bm'
+'$Include:'lib/max.bm'
+'$Include:'lib/min.bm'
+'$Include:'lib/modfloor.bm'
+'$Include:'lib/transitangle.bm'
+'$Include:'lib/hex.bm'
+'$Include:'lib/fade.bm'
 '-----------------

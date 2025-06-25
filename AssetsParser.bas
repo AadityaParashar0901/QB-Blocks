@@ -76,6 +76,7 @@ For I = 1 To ListStringLength(FileContents)
                     Write_Log "Block Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
                 Case "transparent": If BlockMode = 0 Then _Continue
                     Blocks(CurrentBlockID).Transparent = -1
+                    isTransparent(CurrentBlockID) = 1
                     Write_Log "Block is transparent"
             End Select
     End Select

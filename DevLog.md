@@ -27,3 +27,11 @@ Added Complex terrain generation
 Added Biomes  
 Added Tons of blocks, and efficient block management  
 Added Dynamic Skycolor  
+
+## 25 June 2025
+Works...  
+Improved terrain generation  
+Changed noise function  
+Changed cube vertices data for GL_CULL_FACE  
+Improved assets parser  
+Reset to simple game  
