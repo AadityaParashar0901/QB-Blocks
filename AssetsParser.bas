@@ -58,7 +58,7 @@ For I = 1 To ListStringLength(FileContents)
                 Case "name": I = I + 2
                     CurrentBlockID = CurrentBlockID + 1
                     ReDim _Preserve Shared Blocks(1 To CurrentBlockID) As BlockData
-                    ReDim _Preserve Shared isTransparent(1 To CurrentBlockID) As _Unsigned _Bit
+                    ReDim _Preserve Shared isTransparent(0 To CurrentBlockID) As _Unsigned _Bit
                     Blocks(CurrentBlockID).Name = ListStringGet(FileContents, I)
                     Blocks(CurrentBlockID).Name = Mid$(Blocks(CurrentBlockID).Name, 2, Len(Blocks(CurrentBlockID).Name) - 2)
                     BlockMode = 1

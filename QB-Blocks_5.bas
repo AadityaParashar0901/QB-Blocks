@@ -286,7 +286,7 @@ Do
     $Checking:On
     '------------------
     '--- Load Chunks ---
-    $Checking:Off
+    '$Checking:Off
     If LoadChunk~` And ChunkID > 0 Then
         Select Case Chunks(ChunkID).DataLoaded And (Chunks(ChunkID).X = LoadChunk.X And Chunks(ChunkID).Y = LoadChunk.Y And Chunks(ChunkID).Z = LoadChunk.Z)
             Case 0 '    Load Chunk Data
@@ -305,7 +305,26 @@ Do
                 Chunks(ChunkID).Z = LoadChunk.Z
                 File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Y) + Str$(Chunks(ChunkID).Z)
                 Chunks(ChunkID).DataLoaded = 1 - 2 * (TransparentBlocksCount = 0)
-            Case 1: '    Load Render Data
+            Case 1: '    Calculate Light Data
+                '    Debug - Skip light calculation
+                Chunks(ChunkID).DataLoaded = 2: Exit Select
+                '    -----
+                For X = 0 To 17: For Z = 0 To 17
+                        __TOGGLE` = 0
+                        For Y = 17 To 0 Step -1
+                            __TOGGLE` = ChunksData(X, Y, Z, ChunkID).Block Or __TOGGLE`
+                            ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
+                Next Y, Z, X
+                For I = 15 To 1 Step -1
+                    For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 16
+                                If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
+                                If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
+                                    ChunksData(X, Y, Z, ChunkID).Light = I - 1
+                                End If
+                    Next Y, Z, X
+                Next I
+                Chunks(ChunkID).DataLoaded = 2
+            Case 2: '    Load Render Data
                 VertexID = ChunkDataSize * (ChunkID - 1)
                 Chunks(ChunkID).VerticesCount = 0
                 For X = 1 To 16
@@ -320,12 +339,21 @@ Do
                                 If (ChunksData(X, Y, Z, ChunkID).Visibility And Face) = 0 Then _Continue
                                 TextureID = Asc(Blocks(CurrentBlock).Faces, _SHR(I, 2) + 1)
                                 TextureOffset = Textures(TextureID).Y
+                                Select Case _SHR(I, 2)
+                                    Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6
+                                    Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6
+                                    Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light
+                                    Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8
+                                    Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4
+                                    Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4
+                                End Select
                                 Vertices(VertexID).X = X + CubeVertices(I).X
                                 Vertices(VertexID).Y = Y + CubeVertices(I).Y
                                 Vertices(VertexID).Z = Z + CubeVertices(I).Z
                                 TextureCoords(VertexID).X = CubeTextureCoords(I).X
                                 TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * TextureSize / TextureAtlasHeight
-                                Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, ChunksData(X, Y, Z, ChunkID).Light)
+                                'Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 15 - (Light - Light * (Light < 0)))
+                                Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 0)
                                 Colors(VertexID).Y = Colors(VertexID).X
                                 Colors(VertexID).Z = Colors(VertexID).X
                                 Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount + 1
@@ -338,7 +366,7 @@ Do
                 TotalChunksLoaded = TotalChunksLoaded + 1
         End Select
     End If
-    $Checking:On
+    '$Checking:On
     '-------------------
     If _Exit Then Exit Do
     LFPSCount = LFPSCount + 1

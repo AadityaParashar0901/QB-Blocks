@@ -35,3 +35,7 @@ Changed noise function
 Changed cube vertices data for GL_CULL_FACE  
 Improved assets parser  
 Reset to simple game  
+
+## 26 June 2025
+Fixed Bug for isTransparent()  
+Fixed Bug after Turning off lighting  
