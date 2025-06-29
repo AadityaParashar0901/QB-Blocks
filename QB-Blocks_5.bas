@@ -410,6 +410,8 @@ Sub SetSkyColor (Colour&)
 End Sub
 Sub _GL
     Static As Long GL_TextureAtlas_Handle
+    Static As _Unsigned Long tmpChunksVisible, tmpQuadsVisible: tmpChunksVisible = 0: tmpQuadsVisible = 0
+    Static As _Unsigned Long ChunksVisible, QuadsVisible
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
         Case 0
@@ -422,6 +424,13 @@ Sub _GL
         Case CONST_GL_STATE_PAUSE_MENU, CONST_GL_STATE_GAMEPLAY
             _glViewport 0, 0, _Width - 1, _Height - 1
             _glEnable _GL_BLEND
+
+            'For Anti Aliasing
+            _glEnable _GL_LINE_SMOOTH
+            _glEnable _GL_POLYGON_SMOOTH
+            _glEnable _GL_POINT_SMOOTH
+            '_glDisable _GL_MULTISAMPLE
+
             _glEnable _GL_DEPTH_TEST
             _glEnable _GL_CULL_FACE
             _glClearColor SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1
@@ -440,8 +449,6 @@ Sub _GL
             _glEnableClientState _GL_VERTEX_ARRAY
             _glEnableClientState _GL_TEXTURE_COORD_ARRAY
             _glEnableClientState _GL_COLOR_ARRAY
-            Dim As _Unsigned Long tmpChunksVisible, tmpQuadsVisible
-            Dim As _Unsigned Long ChunksVisible, QuadsVisible
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             For I = 1 To MaxChunks
@@ -463,7 +470,6 @@ Sub _GL
             _glDisableClientState _GL_TEXTURE_COORD_ARRAY
             _glDisableClientState _GL_VERTEX_ARRAY
             _glDisable _GL_TEXTURE_2D
-            _glCullFace _GL_FALSE
             _glDisable _GL_DEPTH_TEST
             _glDisable _GL_BLEND
             _glFlush
@@ -527,7 +533,6 @@ End Function
 Function GetBlock~%% (X As Long, Y As Long, Z As Long) Static
     $Checking:Off
     Dim As Integer Height, SurfaceHeight
-    Dim OreProbability!
     Height = fractal2(X, Z, 256, 7, 0) * 256 + 128
     SurfaceHeight = Height - fractal2(X, Z, 256, 7, 1) * 4
     Select Case Y
