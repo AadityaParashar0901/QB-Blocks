@@ -1,7 +1,7 @@
 Function perm2! (X As Long, Y As Long, M As _Unsigned _Byte) Static
     Dim As Long h
     $Checking:Off
-    h = X * 73856093 Xor Y * 19349663 Xor M + Seed
+    h = X * 73856093 Xor Y * 19349663 Xor M + Seed * 193
     h = (h Xor _SHR(h, 13)) * 60493
     h = h Xor _SHR(h, 16)
     perm2! = (h And 2147483647) / 2147483647
