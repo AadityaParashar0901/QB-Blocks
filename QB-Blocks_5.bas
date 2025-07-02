@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 32
 Const WaterLevel = 63
 '---------------------------
 Const MaxRenderDistanceX = MaxRenderDistance + 1
@@ -39,7 +39,7 @@ Const ChunkDataSize = 196608
 Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
 Fov = 90
 Fog = -1
-RenderDistance = 16
+RenderDistance = MaxRenderDistance
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -73,20 +73,21 @@ Next I
 
 '--- Chunks ---
 Type Chunk
-    As Long X, Z
+    As Long X, Z, TX, TZ
     As _Unsigned _Byte DataLoaded 'bits: 1 - Chunk, 0 - Render
     As _Unsigned Integer VerticesCount, TransparentVerticesCount
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
 Type ChunkData
-    As _Unsigned _Byte Block, State, Visibility, Face, Light
+    As _Unsigned _Byte Block, Light
 End Type
 Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Loading
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd, LoadChunk
-Dim LoadChunk~`, ChunkID As _Unsigned Long
+Dim LoadChunk~`, ChunkID As _Unsigned Long, VertexID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
+Dim As _Unsigned _Byte Visibility
 '--------------
 
 '--- Player ---
@@ -95,7 +96,7 @@ Dim Shared As Entity Player
 Player.Speed = 4
 Player.MaxHealth = 10
 Player.Health = Player.MaxHealth
-Player.Position.Y = 256
+Player.Position.Y = 512
 '--------------
 
 '--- Camera & Sky ---
@@ -119,7 +120,10 @@ SetSkyColor LightBlue
 '--------------------
 
 '--- Screen ---
-Screen _NewImage(640, 480, 32)
+Dim Shared As Long MainScreen, ScreenWidth, ScreenHeight
+ScreenWidth = 960: ScreenHeight = 540
+MainScreen = _NewImage(ScreenWidth, ScreenHeight, 32)
+Screen MainScreen
 Color White, _RGB32(0, 127)
 While _Resize: Wend
 '--------------
@@ -162,7 +166,7 @@ While GL_CURRENT_STATE: Wend
 '--- Noise ---
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
-Seed = Rnd * 4294967296
+Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
 '-------------
 
 '--- Font ---
@@ -172,6 +176,8 @@ Font = LoadBitPack("assets/font/ascii.bpc")
 
 '--- FPS ---
 Dim Shared As _Unsigned Integer LFPS, LFPSCount, GFPS, GFPSCount
+LFPS = 60
+GFPS = 60
 Dim As Long FPSCounterTimer
 FPSCounterTimer = _FreeTimer
 On Timer(FPSCounterTimer, 1) GoSub FPSCounter
@@ -192,7 +198,12 @@ Do
         tmpScreenWidth = _ResizeWidth
         tmpScreenHeight = _ResizeHeight
         If tmpScreenWidth > 0 And tmpScreenHeight > 0 Then
-            Screen _NewImage(tmpScreenWidth, tmpScreenHeight, 32)
+            ScreenWidth = tmpScreenWidth
+            ScreenHeight = tmpScreenHeight
+            tmpScreen& = MainScreen
+            MainScreen = _NewImage(ScreenWidth, ScreenHeight, 32)
+            Screen MainScreen
+            _FreeImage tmpScreen&
             _GLRender _Behind
             Color White, _RGB32(0, 127)
         End If
@@ -227,7 +238,7 @@ Do
     RenderChunksEnd.Z = PlayerChunk.Z + RenderDistance / 2
     ReDim LoadedChunks(RenderChunksStart.X To RenderChunksEnd.X, RenderChunksStart.Z To RenderChunksEnd.Z) As _Unsigned Integer
     For I = 1 To MaxChunks
-        If Chunks(I).DataLoaded <> 3 Then ChunkID = IIF(ChunkID, ChunkID, I): _Continue
+        If Chunks(I).DataLoaded <> 255 Then ChunkID = IIF(ChunkID, ChunkID, I): _Continue
         If InRange(RenderChunksStart.X, Chunks(I).X, RenderChunksEnd.X) And InRange(RenderChunksStart.Z, Chunks(I).Z, RenderChunksEnd.Z) Then
             LoadedChunks(Chunks(I).X, Chunks(I).Z) = I
             tmpTotalChunksLoaded = tmpTotalChunksLoaded + 1
@@ -262,29 +273,51 @@ Do
             Case 0 '    Load Chunk Data
                 PX = LoadChunk.X * 16
                 PZ = LoadChunk.Z * 16
+                Chunks(ChunkID).TX = PX
+                Chunks(ChunkID).TZ = PZ
                 TransparentBlocksCount = 0
                 Dim As Integer Height, SurfaceHeight
                 For X = 0 To 17
                     For Z = 0 To 17
                         Height = getHeight~%%(PX + X, PZ + Z)
-                        SurfaceHeight = Height - fractal2(PX + X, PZ + Z, 256, 3, 1) * 4
-                        TreeProbability = fractal2(PX + X, PZ + Z, 4, 1, 2) * fractal2(PX + X, PZ + Z, 4, 1, 3) > 0.9
-                        If TreeProbability Then TreeHeight = fractal2(PX + X, PZ + Z, 256, 0, 2) * 5 Else TreeHeight = -1
+                        SurfaceHeight = Height - 2
                         For Y = 0 To 257
                             Select Case Y
-                                Case Is < SurfaceHeight - 1: Block~%% = getBlockID("stone")
+                                Case Is < SurfaceHeight: Block~%% = getBlockID("stone")
                                 Case SurfaceHeight To Height - 1: Block~%% = getBlockID("dirt")
                                 Case Height: Block~%% = getBlockID("grass")
-                                Case Is < Height + TreeHeight: Block~%% = getBlockID("oak_log")
+                                    'Case Is < Height + TreeHeight: Block~%% = getBlockID("oak_log")
                                 Case Else: Block~%% = 0
                             End Select
+                            If Y <= WaterLevel And Height <= Y Then Block~%% = getBlockID("water")
                             ChunksData(X, Y, Z, ChunkID).Block = Block~%%
-                            TransparentBlocksCount = TransparentBlocksCount + isTransparent(ChunksData(X, Y, Z, ChunkID).Block)
-                Next Y, Z, X
+                            TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block~%%)
+                        Next Y
+                Next Z, X
+                For X = 0 To 17
+                    For Z = 0 To 17
+                        Height = getHeight~%%(PX + X, PZ + Z)
+                        SurfaceHeight = Height - 2
+                        If fractal2(PX + X, PZ + Z, 4, 1, 2) * fractal2(PX + X, PZ + Z, 4, 1, 3) > 0.9 And Height >= WaterLevel - 2 Then
+                            TreeHeight = fractal2(PX + X, PZ + Z, 256, 0, 2) * 5 + 2
+                            For Y = 1 To TreeHeight
+                                ChunksData(X, Y + Height, Z, ChunkID).Block = getBlockID("oak_log")
+                            Next Y
+                            For XX = X - 1 To X + 1
+                                For ZZ = Z - 1 To Z + 1
+                                    For Y = 0 To 1
+                                        If XX = X And ZZ = Z And Y = 0 Then _Continue
+                                        If XX >= 0 And XX <= 17 And ZZ >= 0 And ZZ <= 17 Then
+                                            ChunksData(XX, Y + Height + TreeHeight - 1, ZZ, ChunkID).Block = getBlockID("oak_leaves")
+                                        End If
+                                    Next Y
+                            Next ZZ, XX
+                        End If
+                Next Z, X
                 Chunks(ChunkID).X = LoadChunk.X
                 Chunks(ChunkID).Z = LoadChunk.Z
                 File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
-                Chunks(ChunkID).DataLoaded = 1 - 2 * (TransparentBlocksCount = 0)
+                If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255 Else Chunks(ChunkID).DataLoaded = 1
             Case 1: '    Calculate Light Data
                 'For X = 0 To 17: For Z = 0 To 17
                 '        __TOGGLE` = 0
@@ -298,31 +331,45 @@ Do
                 '                If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
                 '                    ChunksData(X, Y, Z, ChunkID).Light = I - 1
                 '                End If
-                '    Next Y, Z, X
-                'Next I
-                Chunks(ChunkID).DataLoaded = 2
-            Case 2: '    Load Render Data
-                VertexID = ChunkDataSize * (ChunkID - 1)
-                Chunks(ChunkID).VerticesCount = 0
+                'Next Y, Z, X, I
+                Chunks(ChunkID).DataLoaded = 253
+            Case 2 To 252: Chunks(ChunkID).DataLoaded = 253
+            Case 253, 254: '    Load Opaque Render Data
+                Dim Mode As _Unsigned _Byte
+                Mode = Chunks(ChunkID).DataLoaded
+                If Mode = 253 Then
+                    VertexID = ChunkDataSize * (ChunkID - 1)
+                    Chunks(ChunkID).VerticesCount = 0
+                Else
+                    VertexID = ChunkDataSize * (ChunkID - 1) + Chunks(ChunkID).VerticesCount + 1
+                    Chunks(ChunkID).TransparentVerticesCount = 0
+                End If
                 For X = 1 To 16
                     For Y = 1 To 256
                         For Z = 1 To 16
                             CurrentBlock = ChunksData(X, Y, Z, ChunkID).Block
-                            If CurrentBlock = 0 Then _Continue
-                            ChunksData(X, Y, Z, ChunkID).Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or _SHL(isTransparent(ChunksData(X - 1, Y, Z, ChunkID).Block), 1) Or _SHL(isTransparent(ChunksData(X, Y + 1, Z, ChunkID).Block), 2) Or _SHL(isTransparent(ChunksData(X, Y - 1, Z, ChunkID).Block), 3) Or _SHL(isTransparent(ChunksData(X, Y, Z + 1, ChunkID).Block), 4) Or _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
+                            If (Mode = 253 And isTransparent(CurrentBlock)) Or CurrentBlock = 0 Then _Continue
+                            Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or_
+                                 _SHL(isTransparent(ChunksData(X - 1, Y, Z, ChunkID).Block), 1) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y + 1, Z, ChunkID).Block), 2) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y - 1, Z, ChunkID).Block), 3) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y, Z + 1, ChunkID).Block), 4) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
                             Dim As _Unsigned _Byte Face
                             For I = 0 To 23
-                                Face = _SHL(1, _SHR(I, 2))
-                                If (ChunksData(X, Y, Z, ChunkID).Visibility And Face) = 0 Then _Continue
-                                TextureID = Asc(Blocks(CurrentBlock).Faces, _SHR(I, 2) + 1)
+                                Face = _SHR(I, 2)
+                                If (Visibility And _SHL(1, Face)) = 0 Then _Continue
+                                TextureID = Asc(Blocks(CurrentBlock).Faces, Face + 1)
+                                If TextureID = 0 Then _Continue
                                 TextureOffset = Textures(TextureID).Y
-                                Select Case _SHR(I, 2)
-                                    Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6
-                                    Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6
-                                    Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light
-                                    Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8
-                                    Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4
-                                    Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4
+                                omitFace = omitBlockFace(CurrentBlock, Face)
+                                Select Case Face
+                                    Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X + 1, Y, Z, ChunkID).Block Then _Continue
+                                    Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X - 1, Y, Z, ChunkID).Block Then _Continue
+                                    Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light: If omitFace And CurrentBlock = ChunksData(X, Y + 1, Z, ChunkID).Block Then _Continue
+                                    Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8: If omitFace And CurrentBlock = ChunksData(X, Y - 1, Z, ChunkID).Block Then _Continue
+                                    Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z + 1, ChunkID).Block Then _Continue
+                                    Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z - 1, ChunkID).Block Then _Continue
                                 End Select
                                 Vertices(VertexID).X = X + CubeVertices(I).X
                                 Vertices(VertexID).Y = Y + CubeVertices(I).Y
@@ -333,14 +380,15 @@ Do
                                 Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 0)
                                 Colors(VertexID).Y = Colors(VertexID).X
                                 Colors(VertexID).Z = Colors(VertexID).X
-                                Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount + 1
+                                If Mode = 254 Then_
+                                    Chunks(ChunkID).TransparentVerticesCount = Chunks(ChunkID).TransparentVerticesCount + 1_
+                                Else Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount + 1
                                 VertexID = VertexID + 1
                             Next I
                 Next Z, Y, X
-                File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount)
-                Chunks(ChunkID).DataLoaded = 3
-                LoadChunk~` = 0
-                TotalChunksLoaded = TotalChunksLoaded + 1
+                If Mode = 254 Then File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
+                Chunks(ChunkID).DataLoaded = Mode + 1
+                If Mode = 254 Then LoadChunk~` = 0: TotalChunksLoaded = TotalChunksLoaded + 1
         End Select
     End If
     $Checking:On
@@ -386,6 +434,8 @@ Sub _GL
     Static As Long GL_TextureAtlas_Handle
     Static As _Unsigned Long tmpChunksVisible, tmpQuadsVisible: tmpChunksVisible = 0: tmpQuadsVisible = 0
     Static As _Unsigned Long ChunksVisible, QuadsVisible
+    Static As Long I, J
+    Static As _Unsigned _Byte NewFov, Zoom
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_GAMEPLAY
@@ -401,6 +451,7 @@ Sub _GL
             If _KeyDown(83) Or _KeyDown(115) Then MoveEntity Player, Player.Angle.X + 90, Player.Speed / GFPS
             If _KeyDown(65) Or _KeyDown(97) Then MoveEntity Player, Player.Angle.X - 180, Player.Speed / GFPS
             If _KeyDown(68) Or _KeyDown(100) Then MoveEntity Player, Player.Angle.X, Player.Speed / GFPS
+            Zoom = (_KeyDown(67) Or _KeyDown(99)) And 1
             If _KeyDown(32) Then Player.Position.Y = Player.Position.Y + Player.Speed / GFPS
             If _KeyDown(100304) Then Player.Position.Y = Player.Position.Y - Player.Speed / GFPS
             If _KeyDown(100306) Then Player.Speed = 64 Else Player.Speed = 4
@@ -433,7 +484,7 @@ Sub _GL
             '_glDisable _GL_MULTISAMPLE
 
             _glEnable _GL_DEPTH_TEST
-            '_glEnable _GL_CULL_FACE
+            _glEnable _GL_CULL_FACE
             _glClearColor SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1
             _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
             '_glTranslatef 0, 0, -0.25
@@ -442,7 +493,8 @@ Sub _GL
             _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
-            _gluPerspective Fov, _Width / _Height, 0.1, 1024
+            NewFov = NewFov + Sgn(Fov - Zoom * (Fov - 30) - NewFov)
+            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 1024
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
             _glEnable _GL_TEXTURE_2D
@@ -453,17 +505,29 @@ Sub _GL
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             For I = 1 To MaxChunks
-                If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 3 Then _Continue
-                J = I - 1
+                If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
+                J = (I - 1) * ChunkDataSize
                 _glPushMatrix
-                _glTranslatef 16 * Chunks(I).X, 0, 16 * Chunks(I).Z
-                _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(ChunkDataSize * J))
-                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TextureCoords(ChunkDataSize * J))
-                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(ChunkDataSize * J))
+                _glTranslatef Chunks(I).TX, 0, Chunks(I).TZ
+                _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J))
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TextureCoords(J))
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
                 _glDrawArrays _GL_QUADS, 0, Chunks(I).VerticesCount
                 _glPopMatrix
-                tmpChunksVisible = tmpChunksVisible + 1
-                tmpQuadsVisible = tmpQuadsVisible + Chunks(I).VerticesCount / 4
+                tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).VerticesCount, 2)
+            Next I
+            For I = 1 To MaxChunks
+                tmpChunksVisible = tmpChunksVisible - ((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) > 0)
+                If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
+                J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
+                _glPushMatrix
+                _glTranslatef Chunks(I).TX, 0, Chunks(I).TZ
+                _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J))
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TextureCoords(J))
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
+                _glDrawArrays _GL_QUADS, 0, Chunks(I).TransparentVerticesCount
+                _glPopMatrix
+                tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
             Next I
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
@@ -532,8 +596,13 @@ Function getBlockID~% (BlockName$) Static
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
 Function getHeight~%% (X As Long, Z As Long) Static
-    T! = fractal2(PX + X - (Seed And 255), PZ + Z - (_SHR(Seed, 8) And 255), 256, 3, 0)
-    getHeight~%% = T! * T! * 256
+    Dim As _Unsigned Integer SX, SZ
+    SX = Seed: SZ = _SHR(Seed, 16)
+    L! = fractal2(X - SX, Z - SZ, 256, 0, 0)
+    H! = fractal2(X - SX, Z - SZ, 64, 2, 1)
+    I! = fractal2(X - SX, Z - SZ, 256, 0, 2)
+    N! = interpolate(L!, H!, I!)
+    getHeight~%% = N! * 256
 End Function
 Function LoadAsset& (FILE$)
     If _FileExists("assets/blocks/" + FILE$ + ".png") Then LoadAsset& = _LoadImage("assets/blocks/" + FILE$ + ".png", 32): Exit Function

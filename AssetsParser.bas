@@ -30,7 +30,14 @@ For I = 1 To ListStringLength(FileContents)
                     End Type
                     ReDim Shared Blocks(0) As BlockData
                     ReDim Shared isTransparent(0) As _Unsigned _Bit
+                    ReDim Shared omitBlockFace(0, 0 To 5) As _Unsigned _Bit
                     isTransparent(0) = 1
+                    omitBlockFace(0, 0) = 1
+                    omitBlockFace(0, 1) = 1
+                    omitBlockFace(0, 2) = 1
+                    omitBlockFace(0, 3) = 1
+                    omitBlockFace(0, 4) = 1
+                    omitBlockFace(0, 5) = 1
                     CurrentBlockID = 0: BlockMode = 0
                 Case ";"
             End Select
@@ -59,6 +66,7 @@ For I = 1 To ListStringLength(FileContents)
                     CurrentBlockID = CurrentBlockID + 1
                     ReDim _Preserve Shared Blocks(1 To CurrentBlockID) As BlockData
                     ReDim _Preserve Shared isTransparent(0 To CurrentBlockID) As _Unsigned _Bit
+                    ReDim _Preserve Shared omitBlockFace(0 To CurrentBlockID, 0 To 5) As _Unsigned _Bit
                     Blocks(CurrentBlockID).Name = ListStringGet(FileContents, I)
                     Blocks(CurrentBlockID).Name = Mid$(Blocks(CurrentBlockID).Name, 2, Len(Blocks(CurrentBlockID).Name) - 2)
                     BlockMode = 1
@@ -78,6 +86,16 @@ For I = 1 To ListStringLength(FileContents)
                     Blocks(CurrentBlockID).Transparent = -1
                     isTransparent(CurrentBlockID) = 1
                     Write_Log "Block is transparent"
+                Case "omit": If BlockMode = 0 Then _Continue
+                    Select Case ListStringGet(FileContents, I + 2)
+                        Case "[": I = I + 2: For J = 0 To 5
+                                omitBlockFace(CurrentBlockID, J) = Val(ListStringGet(FileContents, I + J * 2 + 1))
+                            Next J
+                            I = I + 11
+                        Case Else
+                            For J = 0 To 5: omitBlockFace(CurrentBlockID, J) = 1: Next J
+                    End Select
+                    Write_Log "Omit Block Face: " + Str$(omitBlockFace(CurrentBlockID, 0)) + Str$(omitBlockFace(CurrentBlockID, 1)) + Str$(omitBlockFace(CurrentBlockID, 2)) + Str$(omitBlockFace(CurrentBlockID, 3)) + Str$(omitBlockFace(CurrentBlockID, 4)) + Str$(omitBlockFace(CurrentBlockID, 5))
             End Select
     End Select
 Next I

@@ -39,3 +39,13 @@ Reset to simple game
 ## 26 June 2025
 Fixed Bug for isTransparent()  
 Fixed Bug after Turning off lighting  
+
+## 01 July 2025
+Made Chunks 16x256x16  
+Increased Performance
+
+## 02 July 2025
+Added Trees  
+Added Water  
+Fixed Bugs  
+Improved Performance  
