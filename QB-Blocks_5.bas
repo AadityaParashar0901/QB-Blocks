@@ -90,7 +90,7 @@ Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Loading
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd, LoadChunk
-Dim LoadChunk~`, ChunkID As _Unsigned Long, VertexID As _Unsigned Long
+Dim LoadChunk~`, ChunkID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
 Dim As _Unsigned _Byte Visibility
 '    Chunk Load Queue
@@ -445,6 +445,7 @@ Sub _GL
     Static As Long I, J
     Static As _Unsigned _Byte NewFov, Zoom
     Static As Single CloudsTranslateZ, TransparentTranslateY
+    Dim VertexID As _Unsigned Long
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_GAMEPLAY
