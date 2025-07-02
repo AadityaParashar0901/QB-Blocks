@@ -38,7 +38,7 @@ Const ChunkDataSize = 196608
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
 Fov = 90
-Fog = -1
+Fog = 0
 RenderDistance = MaxRenderDistance
 '-----------------------------
 
@@ -55,6 +55,9 @@ Const CONST_GL_STATE_GAMEPLAY = 4
 Const CONST_GL_STATE_FREE_ASSETS = 5
 Const CONST_GL_STATE_SHOW_FPS = 6
 Const CONST_GL_STATE_SHOW_DEBUG_MENU = 7
+Const CONST_GL_STATE_SHOW_LOADING_MENU = 8
+Dim Shared As String LoadingMessage
+GL_EXTRA_STATE = CONST_GL_STATE_SHOW_LOADING_MENU
 
 _GLRender _Behind
 
@@ -69,12 +72,14 @@ For I = 0 To 23
     Read CubeVertices(I).X, CubeVertices(I).Y, CubeVertices(I).Z
     Read CubeTextureCoords(I).X, CubeTextureCoords(I).Y
 Next I
+
+Dim Shared VEC4(3) As Single 'for glVec4
 '----------
 
 '--- Chunks ---
 Type Chunk
     As Long X, Z, TX, TZ
-    As _Unsigned _Byte DataLoaded 'bits: 1 - Chunk, 0 - Render
+    As _Unsigned _Byte DataLoaded
     As _Unsigned Integer VerticesCount, TransparentVerticesCount
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
@@ -88,6 +93,9 @@ Dim As Vec3_Long RenderChunksStart, RenderChunksEnd, LoadChunk
 Dim LoadChunk~`, ChunkID As _Unsigned Long, VertexID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
 Dim As _Unsigned _Byte Visibility
+'    Chunk Load Queue
+Dim Shared As _Unsigned Long ChunkLoadQueue(0 To 255)
+Dim As _Unsigned _Byte NewChunkLoadQueue
 '--------------
 
 '--- Player ---
@@ -96,7 +104,7 @@ Dim Shared As Entity Player
 Player.Speed = 4
 Player.MaxHealth = 10
 Player.Health = Player.MaxHealth
-Player.Position.Y = 512
+Player.Position.Y = 256
 '--------------
 
 '--- Camera & Sky ---
@@ -110,6 +118,11 @@ Dim Shared As Vec3_Long PlayerChunk
 Dim Shared As Vec3_Byte PlayerInChunk
 
 '    Clouds
+LoadingMessage = "Generating Clouds"
+Const MaxCloudVertices = 24 * 1048576
+Dim Shared As Vec3_Int CloudVertices(0 To MaxCloudVertices - 1)
+Dim Shared As Vec4_Byte CloudColors(0 To MaxCloudVertices - 1)
+Dim Shared As _Unsigned Long TotalClouds
 '    Sun
 '    Moon
 '    Sky
@@ -167,6 +180,7 @@ While GL_CURRENT_STATE: Wend
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
 Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+Clouds 'Initialize Clouds
 '-------------
 
 '--- Font ---
@@ -236,10 +250,10 @@ Do
     RenderChunksStart.Z = PlayerChunk.Z - RenderDistance / 2
     RenderChunksEnd.X = PlayerChunk.X + RenderDistance / 2
     RenderChunksEnd.Z = PlayerChunk.Z + RenderDistance / 2
-    ReDim LoadedChunks(RenderChunksStart.X To RenderChunksEnd.X, RenderChunksStart.Z To RenderChunksEnd.Z) As _Unsigned Integer
+    ReDim LoadedChunks(RenderChunksStart.X To RenderChunksEnd.X, RenderChunksStart.Z To RenderChunksEnd.Z) As _Unsigned Long
     For I = 1 To MaxChunks
-        If Chunks(I).DataLoaded <> 255 Then ChunkID = IIF(ChunkID, ChunkID, I): _Continue
-        If InRange(RenderChunksStart.X, Chunks(I).X, RenderChunksEnd.X) And InRange(RenderChunksStart.Z, Chunks(I).Z, RenderChunksEnd.Z) Then
+        If Chunks(I).DataLoaded < 253 Then ChunkID = IIF(ChunkID, ChunkID, I): _Continue
+        If InRange(RenderChunksStart.X, Chunks(I).X, RenderChunksEnd.X) And InRange(RenderChunksStart.Z, Chunks(I).Z, RenderChunksEnd.Z) Then 'Mark Chunks (only loaded)
             LoadedChunks(Chunks(I).X, Chunks(I).Z) = I
             tmpTotalChunksLoaded = tmpTotalChunksLoaded + 1
         Else 'Unload Chunks
@@ -256,7 +270,7 @@ Do
         tmpChunksEnd.Z = PlayerChunk.Z + R
         For X = tmpChunksStart.X To tmpChunksEnd.X
             For Z = tmpChunksStart.Z To tmpChunksEnd.Z
-                If LoadedChunks(X, Z) = 0 Then
+                If LoadedChunks(X, Z) = 0 Then 'Load Chunk if mark unloaded
                     LoadChunk.X = X
                     LoadChunk.Z = Z
                     LoadChunk~` = 1
@@ -286,7 +300,6 @@ Do
                                 Case Is < SurfaceHeight: Block~%% = getBlockID("stone")
                                 Case SurfaceHeight To Height - 1: Block~%% = getBlockID("dirt")
                                 Case Height: Block~%% = getBlockID("grass")
-                                    'Case Is < Height + TreeHeight: Block~%% = getBlockID("oak_log")
                                 Case Else: Block~%% = 0
                             End Select
                             If Y <= WaterLevel And Height <= Y Then Block~%% = getBlockID("water")
@@ -316,79 +329,31 @@ Do
                 Next Z, X
                 Chunks(ChunkID).X = LoadChunk.X
                 Chunks(ChunkID).Z = LoadChunk.Z
-                File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
                 If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255 Else Chunks(ChunkID).DataLoaded = 1
             Case 1: '    Calculate Light Data
-                'For X = 0 To 17: For Z = 0 To 17
-                '        __TOGGLE` = 0
-                '        For Y = 257 To 0 Step -1
-                '            __TOGGLE` = ChunksData(X, Y, Z, ChunkID).Block Or __TOGGLE`
-                '            ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
-                'Next Y, Z, X
-                'For I = 15 To 1 Step -1
-                '    For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
-                '                If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
-                '                If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
-                '                    ChunksData(X, Y, Z, ChunkID).Light = I - 1
-                '                End If
-                'Next Y, Z, X, I
-                Chunks(ChunkID).DataLoaded = 253
-            Case 2 To 252: Chunks(ChunkID).DataLoaded = 253
-            Case 253, 254: '    Load Opaque Render Data
-                Dim Mode As _Unsigned _Byte
-                Mode = Chunks(ChunkID).DataLoaded
-                If Mode = 253 Then
-                    VertexID = ChunkDataSize * (ChunkID - 1)
-                    Chunks(ChunkID).VerticesCount = 0
-                Else
-                    VertexID = ChunkDataSize * (ChunkID - 1) + Chunks(ChunkID).VerticesCount + 1
-                    Chunks(ChunkID).TransparentVerticesCount = 0
+                For X = 0 To 17: For Z = 0 To 17
+                        __TOGGLE` = 0
+                        For Y = 257 To 0 Step -1
+                            __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
+                            ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
+                Next Y, Z, X
+                Chunks(ChunkID).DataLoaded = 2
+            Case 2 To 16
+                I = 17 - Chunks(ChunkID).DataLoaded
+                For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
+                            If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
+                            If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
+                                ChunksData(X, Y, Z, ChunkID).Light = I - 1
+                            End If
+                Next Y, Z, X
+                Chunks(ChunkID).DataLoaded = Chunks(ChunkID).DataLoaded + 1
+            Case 17:
+                If ChunkLoadQueue(NewChunkLoadQueue) = 0 Then
+                    ChunkLoadQueue(NewChunkLoadQueue) = ChunkID
+                    Chunks(ChunkID).DataLoaded = 253
+                    File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
                 End If
-                For X = 1 To 16
-                    For Y = 1 To 256
-                        For Z = 1 To 16
-                            CurrentBlock = ChunksData(X, Y, Z, ChunkID).Block
-                            If (Mode = 253 And isTransparent(CurrentBlock)) Or CurrentBlock = 0 Then _Continue
-                            Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or_
-                                 _SHL(isTransparent(ChunksData(X - 1, Y, Z, ChunkID).Block), 1) Or_
-                                 _SHL(isTransparent(ChunksData(X, Y + 1, Z, ChunkID).Block), 2) Or_
-                                 _SHL(isTransparent(ChunksData(X, Y - 1, Z, ChunkID).Block), 3) Or_
-                                 _SHL(isTransparent(ChunksData(X, Y, Z + 1, ChunkID).Block), 4) Or_
-                                 _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
-                            Dim As _Unsigned _Byte Face
-                            For I = 0 To 23
-                                Face = _SHR(I, 2)
-                                If (Visibility And _SHL(1, Face)) = 0 Then _Continue
-                                TextureID = Asc(Blocks(CurrentBlock).Faces, Face + 1)
-                                If TextureID = 0 Then _Continue
-                                TextureOffset = Textures(TextureID).Y
-                                omitFace = omitBlockFace(CurrentBlock, Face)
-                                Select Case Face
-                                    Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X + 1, Y, Z, ChunkID).Block Then _Continue
-                                    Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X - 1, Y, Z, ChunkID).Block Then _Continue
-                                    Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light: If omitFace And CurrentBlock = ChunksData(X, Y + 1, Z, ChunkID).Block Then _Continue
-                                    Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8: If omitFace And CurrentBlock = ChunksData(X, Y - 1, Z, ChunkID).Block Then _Continue
-                                    Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z + 1, ChunkID).Block Then _Continue
-                                    Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z - 1, ChunkID).Block Then _Continue
-                                End Select
-                                Vertices(VertexID).X = X + CubeVertices(I).X
-                                Vertices(VertexID).Y = Y + CubeVertices(I).Y
-                                Vertices(VertexID).Z = Z + CubeVertices(I).Z
-                                TextureCoords(VertexID).X = CubeTextureCoords(I).X
-                                TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * TextureSize / TextureAtlasHeight
-                                'Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 15 - (Light - Light * (Light < 0)))
-                                Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 0)
-                                Colors(VertexID).Y = Colors(VertexID).X
-                                Colors(VertexID).Z = Colors(VertexID).X
-                                If Mode = 254 Then_
-                                    Chunks(ChunkID).TransparentVerticesCount = Chunks(ChunkID).TransparentVerticesCount + 1_
-                                Else Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount + 1
-                                VertexID = VertexID + 1
-                            Next I
-                Next Z, Y, X
-                If Mode = 254 Then File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
-                Chunks(ChunkID).DataLoaded = Mode + 1
-                If Mode = 254 Then LoadChunk~` = 0: TotalChunksLoaded = TotalChunksLoaded + 1
+                NewChunkLoadQueue = NewChunkLoadQueue + 1
         End Select
     End If
     $Checking:On
@@ -420,6 +385,50 @@ Sub SimulateCamera
         Camera.Position = Player.Position
     End If
     SetSkyColor _RGB32(0, 127, 255)
+    Clouds
+End Sub
+Sub Clouds Static
+    Static As Long CloudX, CloudZ
+    Static FirstRun As _Unsigned _Byte
+    Static As _Unsigned _Bit * 20 CloudOffset, CloudsCurrentOffset
+    Static As _Unsigned _Byte OmitFace
+    If FirstRun = 0 Then
+        FirstRun = -1
+        CloudX = -512
+        CloudZ = -512
+        TotalClouds = 0
+        Do
+            Select Case fractal2(CloudX - 128, CloudZ - 128, 64, 3, 7)
+                Case 0.1 To 0.4
+                    For I = 12 To 15
+                        CloudVertices(CloudsCurrentOffset).X = _SHL(CloudX, 2) + CubeVertices(I).X * 4
+                        CloudVertices(CloudsCurrentOffset).Y = 192 + CubeVertices(I).Y
+                        CloudVertices(CloudsCurrentOffset).Z = _SHL(CloudZ, 2) + CubeVertices(I).Z * 4
+                        CloudColors(CloudsCurrentOffset).X = 255
+                        CloudColors(CloudsCurrentOffset).Y = 255
+                        CloudColors(CloudsCurrentOffset).Z = 255
+                        CloudColors(CloudsCurrentOffset).W = 127
+                        CloudsCurrentOffset = CloudsCurrentOffset + 1
+                    Next I
+                Case 0.7 To 0.9
+                    For I = 12 To 15
+                        CloudVertices(CloudsCurrentOffset).X = _SHL(CloudX, 2) + CubeVertices(I).X * 4
+                        CloudVertices(CloudsCurrentOffset).Y = 192 + CubeVertices(I).Y
+                        CloudVertices(CloudsCurrentOffset).Z = _SHL(CloudZ, 2) + CubeVertices(I).Z * 4
+                        CloudColors(CloudsCurrentOffset).X = 191
+                        CloudColors(CloudsCurrentOffset).Y = 191
+                        CloudColors(CloudsCurrentOffset).Z = 191
+                        CloudColors(CloudsCurrentOffset).W = 127
+                        CloudsCurrentOffset = CloudsCurrentOffset + 1
+                    Next I
+            End Select
+            TotalClouds = Max(_SHR(CloudsCurrentOffset, 2), TotalClouds)
+            CloudX = CloudX + 1
+            If CloudX >= 512 Then CloudX = -512: CloudZ = CloudZ + 1
+            If CloudZ >= 512 Then CloudZ = -512: CloudsCurrentOffset = 0
+        Loop While CloudX <> -512 Or CloudZ <> -512
+        Exit Sub
+    End If
 End Sub
 Sub SetSkyColor (Colour&)
     SkyColorRed~%% = SkyColorRed~%% + Sgn(_Red32(Colour&) - SkyColorRed~%%)
@@ -436,6 +445,7 @@ Sub _GL
     Static As _Unsigned Long ChunksVisible, QuadsVisible
     Static As Long I, J
     Static As _Unsigned _Byte NewFov, Zoom
+    Static As Single CloudsTranslateZ, TransparentTranslateY
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_GAMEPLAY
@@ -470,6 +480,8 @@ Sub _GL
         Case CONST_GL_STATE_CREATE_TEXTURES
             Write_Log "Generating GL Textures"
             GL_Generate_Texture GL_TextureAtlas_Handle, TextureAtlas
+            CloudsTranslateZ = -256
+            NewFov = Fov
             GL_CURRENT_STATE = 0
         Case CONST_GL_STATE_STARTUP_MENU
 
@@ -490,13 +502,23 @@ Sub _GL
             '_glTranslatef 0, 0, -0.25
             _glRotatef Player.Angle.Y, 1, 0, 0
             _glRotatef Player.Angle.X, 0, 1, 0
+            _glPushMatrix
             _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
             NewFov = NewFov + Sgn(Fov - Zoom * (Fov - 30) - NewFov)
-            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 1024
+            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 4096
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
+            If Fog Then
+                _glEnable _GL_FOG
+                _glFogi _GL_FOG_MODE, _GL_LINEAR
+                _glFogf _GL_FOG_END, 1024
+                _glFogf _GL_FOG_START, 8 * RenderDistance
+                _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
+                _glFogf _GL_FOG_DENSITY, 1
+            End If
+
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
             _glEnableClientState _GL_VERTEX_ARRAY
@@ -516,8 +538,10 @@ Sub _GL
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).VerticesCount, 2)
             Next I
+            TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi)
+            _glTranslatef 0, -Sin(TransparentTranslateY) * 0.1, 0
             For I = 1 To MaxChunks
-                tmpChunksVisible = tmpChunksVisible - ((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) > 0)
+                tmpChunksVisible = tmpChunksVisible - ((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) > 0) And (Chunks(I).DataLoaded = 255)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
                 _glPushMatrix
@@ -529,12 +553,26 @@ Sub _GL
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
             Next I
+            _glTranslatef 0, Sin(TransparentTranslateY) * 0.1, 0
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
             _glDisableClientState _GL_COLOR_ARRAY
             _glDisableClientState _GL_TEXTURE_COORD_ARRAY
             _glDisableClientState _GL_VERTEX_ARRAY
             _glDisable _GL_TEXTURE_2D
+
+            _glPopMatrix
+            _glTranslatef 0, -Camera.Position.Y, CloudsTranslateZ
+            CloudsTranslateZ = ClampCycle(-256, CloudsTranslateZ + 0.1, 256)
+            _glEnableClientState _GL_VERTEX_ARRAY
+            _glEnableClientState _GL_COLOR_ARRAY
+            _glVertexPointer 3, _GL_SHORT, 0, _Offset(CloudVertices(0))
+            _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
+            _glDrawArrays _GL_QUADS, 0, TotalClouds
+            _glDisableClientState _GL_COLOR_ARRAY
+            _glDisableClientState _GL_VERTEX_ARRAY
+
+            If Fog Then _glDisable _GL_FOG
             _glDisable _GL_DEPTH_TEST
             _glDisable _GL_BLEND
             _glFlush
@@ -545,6 +583,9 @@ Sub _GL
     End Select
     Cls , 0
     Select Case GL_EXTRA_STATE
+        Case CONST_GL_STATE_SHOW_LOADING_MENU
+            PrintString ScreenWidth / 2 - 8 * Len(LoadingMessage), ScreenHeight / 2 - 8, LoadingMessage, White
+            _Display
         Case CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU
             PrintString 0, 0, "FPS (G/L):" + Str$(GFPS) + "," + Str$(LFPS), White
             PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z), White
@@ -552,12 +593,84 @@ Sub _GL
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
+                PrintString 0, 80, "Total Clouds:" + Str$(TotalClouds), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
     End Select
+    'Load Chunk Render Data
+    Dim As _Unsigned Long ChunkID
+    For I = 0 To 255
+        If ChunkLoadQueue(I) = 0 Then _Continue
+        ChunkID = ChunkLoadQueue(I)
+        Select Case Chunks(ChunkID).DataLoaded
+            Case 253, 254: '    Load Opaque Render Data
+                Dim Mode As _Unsigned _Byte
+                Mode = Chunks(ChunkID).DataLoaded
+                If Mode = 253 Then
+                    VertexID = ChunkDataSize * (ChunkID - 1)
+                    Chunks(ChunkID).VerticesCount = 0
+                Else
+                    VertexID = ChunkDataSize * (ChunkID - 1) + Chunks(ChunkID).VerticesCount + 1
+                    Chunks(ChunkID).TransparentVerticesCount = 0
+                End If
+                For X = 1 To 16
+                    For Y = 1 To 256
+                        For Z = 1 To 16
+                            CurrentBlock = ChunksData(X, Y, Z, ChunkID).Block
+                            If (Mode = 253 And isTransparent(CurrentBlock)) Or (Mode = 254 And isTransparent(CurrentBlock) = 0) Or CurrentBlock = 0 Then _Continue
+                            Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or_
+                                 _SHL(isTransparent(ChunksData(X - 1, Y, Z, ChunkID).Block), 1) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y + 1, Z, ChunkID).Block), 2) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y - 1, Z, ChunkID).Block), 3) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y, Z + 1, ChunkID).Block), 4) Or_
+                                 _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
+                            Dim As _Unsigned _Byte Face
+                            For I = 0 To 23
+                                Face = _SHR(I, 2)
+                                If (Visibility And _SHL(1, Face)) = 0 Then _Continue
+                                TextureID = Asc(Blocks(CurrentBlock).Faces, Face + 1)
+                                If TextureID = 0 Then _Continue
+                                TextureOffset = Textures(TextureID).Y
+                                omitFace = omitBlockFace(CurrentBlock, Face)
+                                Select Case Face
+                                    Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X + 1, Y, Z, ChunkID).Block Then _Continue
+                                    Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6: If omitFace And CurrentBlock = ChunksData(X - 1, Y, Z, ChunkID).Block Then _Continue
+                                    Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light: If omitFace And CurrentBlock = ChunksData(X, Y + 1, Z, ChunkID).Block Then _Continue
+                                    Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8: If omitFace And CurrentBlock = ChunksData(X, Y - 1, Z, ChunkID).Block Then _Continue
+                                    Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z + 1, ChunkID).Block Then _Continue
+                                    Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4: If omitFace And CurrentBlock = ChunksData(X, Y, Z - 1, ChunkID).Block Then _Continue
+                                End Select
+                                Vertices(VertexID).X = X + CubeVertices(I).X
+                                Vertices(VertexID).Y = Y + CubeVertices(I).Y
+                                Vertices(VertexID).Z = Z + CubeVertices(I).Z
+                                TextureCoords(VertexID).X = CubeTextureCoords(I).X
+                                TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * TextureSize / TextureAtlasHeight
+                                Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 15 - (Light - Light * (Light < 0)))
+                                'Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 0)
+                                Colors(VertexID).Y = Colors(VertexID).X
+                                Colors(VertexID).Z = Colors(VertexID).X
+                                Chunks(ChunkID).TransparentVerticesCount = Chunks(ChunkID).TransparentVerticesCount - (Mode = 254)
+                                Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount - (Mode = 253)
+                                VertexID = VertexID + 1
+                            Next I
+                Next Z, Y, X
+                If Mode = 254 Then
+                    File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
+                    TotalChunksLoaded = TotalChunksLoaded + 1
+                End If
+                Chunks(ChunkID).DataLoaded = Mode + 1
+                ChunkLoadQueue(I) = 0
+                Exit For
+            Case Else
+        End Select
+    Next I
     GFPSCount = GFPSCount + 1
 End Sub
+Function glVec4%& (X!, Y!, Z!, W!)
+    VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
+    glVec4%& = _Offset(VEC4())
+End Function
 Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkID As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static
     'Adapted from QB-Blocks_4
     $Checking:Off

@@ -1,6 +1,9 @@
 Type Vec3_Byte
     As _Byte X, Y, Z
 End Type
+Type Vec4_Byte
+    As _Byte X, Y, Z, W
+End Type
 Type Vec2_Float
     As Single X, Y
 End Type

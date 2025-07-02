@@ -15,7 +15,7 @@ blocks {
 	name = "dirt", textures = 3;
 	name = "stone", textures = 4;
 	name = "oak_log", textures = [5, 5, 6, 6, 5, 5];
-	name = "oak_leaves", textures = 7, transparent;
+	name = "oak_leaves", textures = 7;
 	name = "oak_planks", textures =8;
 	name = "water", textures = 9, transparent, omit;
 }

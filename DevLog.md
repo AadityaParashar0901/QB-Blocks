@@ -49,3 +49,7 @@ Added Trees
 Added Water  
 Fixed Bugs  
 Improved Performance  
+Water Waves  
+New Terrain Generation  
+Moved Rendering Data Loader To Sub _GL, for faster loading  
+Added Clouds  
