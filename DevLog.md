@@ -53,3 +53,6 @@ Water Waves
 New Terrain Generation  
 Moved Rendering Data Loader To Sub _GL, for faster loading  
 Added Clouds  
+
+## 03 July 2025
+Clouds now regenerate, (buggy)  

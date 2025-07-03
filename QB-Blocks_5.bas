@@ -92,7 +92,6 @@ Dim Shared As _Unsigned Long TotalChunksLoaded
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd, LoadChunk
 Dim LoadChunk~`, ChunkID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
-Dim As _Unsigned _Byte Visibility
 '    Chunk Load Queue
 Dim Shared As _Unsigned Long ChunkLoadQueue(0 To 255)
 Dim As _Unsigned _Byte NewChunkLoadQueue
@@ -122,7 +121,8 @@ LoadingMessage = "Generating Clouds"
 Const MaxCloudVertices = 24 * 1048576
 Dim Shared As Vec3_Int CloudVertices(0 To MaxCloudVertices - 1)
 Dim Shared As Vec4_Byte CloudColors(0 To MaxCloudVertices - 1)
-Dim Shared As _Unsigned Long TotalClouds
+Dim Shared As _Unsigned Long TotalLightClouds, TotalHeavyClouds
+Dim Shared As Single LightCloudsTranslateZ, HeavyCloudsTranslateZ
 '    Sun
 '    Moon
 '    Sky
@@ -390,46 +390,89 @@ End Sub
 Sub Clouds Static
     Static As Long CloudX, CloudZ
     Static FirstRun As _Unsigned _Byte
-    Static As _Unsigned _Bit * 20 CloudOffset, CloudsCurrentOffset
-    Static As _Unsigned _Byte OmitFace
+    Static As _Unsigned _Bit * 20 LightCloudsCurrentOffset, HeavyCloudsCurrentOffset
+    Static As Long LightCloudsLowerLimitZ, HeavyCloudsLowerLimitZ
     If FirstRun = 0 Then
         FirstRun = -1
         CloudX = -512
         CloudZ = -512
         TotalClouds = 0
-        Do
+        LightCloudsCurrentOffset = _SHR(MaxCloudVertices, 1)
+        HeavyCloudsCurrentOffset = 0
+        LightCloudsLowerLimitZ = 0
+        HeavyCloudsLowerLimitZ = 0
+        For CloudZ = -512 To 512
+            For CloudX = -512 To 512
+                Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
+                    Case 0.1 To 0.4
+                        For I = 12 To 15
+                            CloudVertices(LightCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                            CloudVertices(LightCloudsCurrentOffset).Y = 384 + CubeVertices(I).Y
+                            CloudVertices(LightCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
+                            CloudColors(LightCloudsCurrentOffset).X = 255
+                            CloudColors(LightCloudsCurrentOffset).Y = 255
+                            CloudColors(LightCloudsCurrentOffset).Z = 255
+                            CloudColors(LightCloudsCurrentOffset).W = 127
+                            LightCloudsCurrentOffset = LightCloudsCurrentOffset + 1
+                        Next I
+                    Case 0.7 To 0.9
+                        For I = 12 To 15
+                            CloudVertices(HeavyCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                            CloudVertices(HeavyCloudsCurrentOffset).Y = 320 + CubeVertices(I).Y
+                            CloudVertices(HeavyCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
+                            CloudColors(HeavyCloudsCurrentOffset).X = 223
+                            CloudColors(HeavyCloudsCurrentOffset).Y = 223
+                            CloudColors(HeavyCloudsCurrentOffset).Z = 223
+                            CloudColors(HeavyCloudsCurrentOffset).W = 127
+                            HeavyCloudsCurrentOffset = HeavyCloudsCurrentOffset + 1
+                        Next I
+                End Select
+                TotalLightClouds = Max(LightCloudsCurrentOffset - _SHR(MaxCloudVertices, 1), TotalLightClouds)
+                TotalHeavyClouds = Max(HeavyCloudsCurrentOffset, TotalHeavyClouds)
+        Next CloudX, CloudZ
+        LightCloudsCurrentOffset = MaxCloudVertices / 2
+        HeavyCloudsCurrentOffset = 0
+    End If
+    If LightCloudsTranslateZ > 16 + LightCloudsLowerLimitZ Then
+        CloudZ = LightCloudsLowerLimitZ - 512
+        For CloudX = -512 To 512
             Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
                 Case 0.1 To 0.4
                     For I = 12 To 15
-                        CloudVertices(CloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
-                        CloudVertices(CloudsCurrentOffset).Y = 384 + CubeVertices(I).Y
-                        CloudVertices(CloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
-                        CloudColors(CloudsCurrentOffset).X = 255
-                        CloudColors(CloudsCurrentOffset).Y = 255
-                        CloudColors(CloudsCurrentOffset).Z = 255
-                        CloudColors(CloudsCurrentOffset).W = 127
-                        CloudsCurrentOffset = CloudsCurrentOffset + 1
-                    Next I
-                Case 0.7 To 0.9
-                    For I = 12 To 15
-                        CloudVertices(CloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
-                        CloudVertices(CloudsCurrentOffset).Y = 320 + CubeVertices(I).Y
-                        CloudVertices(CloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
-                        CloudColors(CloudsCurrentOffset).X = 223
-                        CloudColors(CloudsCurrentOffset).Y = 223
-                        CloudColors(CloudsCurrentOffset).Z = 223
-                        CloudColors(CloudsCurrentOffset).W = 127
-                        CloudsCurrentOffset = CloudsCurrentOffset + 1
+                        CloudVertices(LightCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                        CloudVertices(LightCloudsCurrentOffset).Y = 384 + CubeVertices(I).Y
+                        CloudVertices(LightCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
+                        CloudColors(LightCloudsCurrentOffset).X = 255
+                        CloudColors(LightCloudsCurrentOffset).Y = 255
+                        CloudColors(LightCloudsCurrentOffset).Z = 255
+                        CloudColors(LightCloudsCurrentOffset).W = 127
+                        LightCloudsCurrentOffset = LightCloudsCurrentOffset + 1
                     Next I
             End Select
-            TotalClouds = Max(CloudsCurrentOffset, TotalClouds)
-            CloudX = CloudX + 1
-            If CloudX >= 512 Then CloudX = -512: CloudZ = CloudZ + 1
-            If CloudZ >= 512 Then CloudZ = -512: CloudsCurrentOffset = 0
-        Loop While CloudX <> -512 Or CloudZ <> -512
+        Next CloudX
+        LightCloudsLowerLimitZ = LightCloudsLowerLimitZ + 16
+    End If
+    If HeavyCloudsTranslateZ > 16 + HeavyCloudsLowerLimitZ Then
+        CloudZ = HeavyCloudsLowerLimitZ - 512
+        For CloudX = -512 To 512
+            Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
+                Case 0.7 To 0.9
+                    For I = 12 To 15
+                        CloudVertices(HeavyCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                        CloudVertices(HeavyCloudsCurrentOffset).Y = 320 + CubeVertices(I).Y
+                        CloudVertices(HeavyCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
+                        CloudColors(HeavyCloudsCurrentOffset).X = 223
+                        CloudColors(HeavyCloudsCurrentOffset).Y = 223
+                        CloudColors(HeavyCloudsCurrentOffset).Z = 223
+                        CloudColors(HeavyCloudsCurrentOffset).W = 127
+                        HeavyCloudsCurrentOffset = HeavyCloudsCurrentOffset + 1
+                    Next I
+            End Select
+        Next CloudX
+        HeavyCloudsLowerLimitZ = HeavyCloudsLowerLimitZ + 16
     End If
 End Sub
-Sub SetSkyColor (Colour&)
+Sub SetSkyColor (Colour&) Static
     SkyColorRed~%% = SkyColorRed~%% + Sgn(_Red32(Colour&) - SkyColorRed~%%)
     SkyColorGreen~%% = SkyColorGreen~%% + Sgn(_Green32(Colour&) - SkyColorGreen~%%)
     SkyColorBlue~%% = SkyColorBlue~%% + Sgn(_Blue32(Colour&) - SkyColorBlue~%%)
@@ -444,7 +487,7 @@ Sub _GL
     Static As _Unsigned Long ChunksVisible, QuadsVisible
     Static As Long I, J
     Static As _Unsigned _Byte NewFov, Zoom
-    Static As Single CloudsTranslateZ, TransparentTranslateY
+    Static As Single TransparentTranslateY
     Dim VertexID As _Unsigned Long
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
@@ -480,7 +523,6 @@ Sub _GL
         Case CONST_GL_STATE_CREATE_TEXTURES
             Write_Log "Generating GL Textures"
             GL_Generate_Texture GL_TextureAtlas_Handle, TextureAtlas
-            CloudsTranslateZ = -256
             NewFov = Fov
             GL_CURRENT_STATE = 0
         Case CONST_GL_STATE_STARTUP_MENU
@@ -553,22 +595,29 @@ Sub _GL
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
             Next I
-            _glTranslatef 0, Sin(TransparentTranslateY) * 0.1, 0
+            _glTranslatef 0, Sin(TransparentTranslateY) / 16, 0
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
             _glDisableClientState _GL_COLOR_ARRAY
             _glDisableClientState _GL_TEXTURE_COORD_ARRAY
             _glDisableClientState _GL_VERTEX_ARRAY
             _glDisable _GL_TEXTURE_2D
+            _glDisable _GL_CULL_FACE
 
-            _glPopMatrix
-            _glTranslatef 0, -Camera.Position.Y, CloudsTranslateZ
-            CloudsTranslateZ = ClampCycle(-256, CloudsTranslateZ + 0.02, 256)
+            _glPopMatrix: _glPushMatrix
             _glEnableClientState _GL_VERTEX_ARRAY
             _glEnableClientState _GL_COLOR_ARRAY
+            _glTranslatef 0, -Camera.Position.Y, LightCloudsTranslateZ
+            LightCloudsTranslateZ = ClampCycle(-256, LightCloudsTranslateZ + 0.04, 256)
+            _glVertexPointer 3, _GL_SHORT, 0, _Offset(CloudVertices(_SHR(MaxCloudVertices, 1)))
+            _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(_SHR(MaxCloudVertices, 1)))
+            _glDrawArrays _GL_QUADS, 0, TotalLightClouds
+            _glPopMatrix
+            _glTranslatef 0, -Camera.Position.Y, HeavyCloudsTranslateZ
+            HeavyCloudsTranslateZ = ClampCycle(-256, HeavyCloudsTranslateZ + 0.02, 256)
             _glVertexPointer 3, _GL_SHORT, 0, _Offset(CloudVertices(0))
             _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
-            _glDrawArrays _GL_QUADS, 0, TotalClouds
+            _glDrawArrays _GL_QUADS, 0, TotalHeavyClouds
             _glDisableClientState _GL_COLOR_ARRAY
             _glDisableClientState _GL_VERTEX_ARRAY
 
@@ -593,7 +642,7 @@ Sub _GL
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
-                PrintString 0, 80, "Total Clouds:" + Str$(_SHR(TotalClouds, 2)), White
+                PrintString 0, 80, "Total Clouds:" + Str$(_SHR(TotalLightClouds + TotalHeavyClouds, 2)), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
