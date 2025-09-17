@@ -1,3 +1,11 @@
+Dim Shared As Long TextureAtlas
+Dim Shared As _Unsigned Integer TextureSize, TotalTextures, TotalBlocks
+Dim As String FileContents
+'    Hash Table for getBlockID
+Dim Shared As String BlockHashTable_List(0 To 255)
+Dim Shared As _Unsigned Integer BlockHashTable_Length(0 To 255)
+Dim Shared As String BlockHashTable_Code(0 To 255)
+'AssetsParser
 Open "assets\assets.list" For Binary As #1
 FileContents = String$(LOF(1), 0)
 Get #1, , FileContents
@@ -101,3 +109,27 @@ For I = 1 To ListStringLength(FileContents)
 Next I
 TotalTextures = UBound(Textures): Write_Log "Total Textures:" + Str$(TotalTextures)
 TotalBlocks = UBound(Blocks): Write_Log "Total Blocks:" + Str$(TotalBlocks)
+'    Form Hash Table
+For I = 1 To TotalBlocks
+    Hash~%% = getHash~%%(Blocks(I).Name)
+    If BlockHashTable_Length(Hash~%%) = 0 Then BlockHashTable_List(Hash~%%) = ListStringNew$
+    ListStringAdd BlockHashTable_List(Hash~%%), Blocks(I).Name
+    BlockHashTable_Length(Hash~%%) = BlockHashTable_Length(Hash~%%) + 1
+    BlockHashTable_Code(Hash~%%) = BlockHashTable_Code(Hash~%%) + MKI$(I)
+    Write_Log "isTransparent(" + Blocks(I).Name + "): " + IIFString(isTransparent(I), "True", "False")
+Next I
+For I = 0 To 255
+    If BlockHashTable_List(I) = "" Then _Continue
+    Write_Log "Block Hash Table (" + ByteToHex$(I) + "): " + ListStringPrint(BlockHashTable_List(I))
+Next I
+'    Create Texture Atlas
+Dim Shared TextureAtlasHeight As _Unsigned Long
+TextureAtlasHeight = TextureSize * Textures(TotalTextures).Y + _Height(Textures(TotalTextures).Handle)
+TextureAtlas = _NewImage(TextureSize, TextureAtlasHeight, 32)
+For I = 1 To TotalTextures
+    _PutImage (0, TextureSize * Textures(I).Y), Textures(I).Handle, TextureAtlas
+    _FreeImage Textures(I).Handle
+Next I
+
+GL_CURRENT_STATE = CONST_GL_STATE_CREATE_TEXTURES
+While GL_CURRENT_STATE: Wend
