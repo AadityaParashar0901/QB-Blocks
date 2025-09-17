@@ -707,9 +707,9 @@ Sub _GL
                 If Mode = 254 Then
                     File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
                     TotalChunksLoaded = TotalChunksLoaded + 1
+                    ChunkLoadQueue(I) = 0
                 End If
                 Chunks(ChunkID).DataLoaded = Mode + 1
-                ChunkLoadQueue(I) = 0
                 Exit For
             Case Else
         End Select
