@@ -89,8 +89,15 @@ End Type
 Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Loading
-Dim As Vec3_Long RenderChunksStart, RenderChunksEnd, LoadChunk
-Dim LoadChunk~`, ChunkID As _Unsigned Long
+Dim As Integer Height, SurfaceHeight
+Dim As String * 324 HeightMap
+
+Dim As Vec3_Long RenderChunksStart, RenderChunksEnd
+Dim LoadChunk As String, LoadChunkCount As _Unsigned _Byte
+Const LoadChunkBufferSize = 16
+LoadChunk = String$(12 * LoadChunkBufferSize, 0)
+Dim As Long LoadChunkX, LoadChunkZ
+Dim ChunkID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
 '    Chunk Load Queue
 Dim Shared As _Unsigned Long ChunkLoadQueue(0 To 255)
@@ -142,38 +149,7 @@ While _Resize: Wend
 '--------------
 
 '--- Assets ---
-Dim Shared As Long TextureAtlas
-Dim Shared As _Unsigned Integer TextureSize, TotalTextures, TotalBlocks
-Dim As String FileContents
-'    Hash Table for getBlockID
-Dim Shared As String BlockHashTable_List(0 To 255)
-Dim Shared As _Unsigned Integer BlockHashTable_Length(0 To 255)
-Dim Shared As String BlockHashTable_Code(0 To 255)
 '$Include:'AssetsParser.bas'
-'    Form Hash Table
-For I = 1 To TotalBlocks
-    Hash~%% = getHash~%%(Blocks(I).Name)
-    If BlockHashTable_Length(Hash~%%) = 0 Then BlockHashTable_List(Hash~%%) = ListStringNew$
-    ListStringAdd BlockHashTable_List(Hash~%%), Blocks(I).Name
-    BlockHashTable_Length(Hash~%%) = BlockHashTable_Length(Hash~%%) + 1
-    BlockHashTable_Code(Hash~%%) = BlockHashTable_Code(Hash~%%) + MKI$(I)
-    Write_Log "isTransparent(" + Blocks(I).Name + "): " + IIFString(isTransparent(I), "True", "False")
-Next I
-For I = 0 To 255
-    If BlockHashTable_List(I) = "" Then _Continue
-    Write_Log "Block Hash Table (" + ByteToHex$(I) + "): " + ListStringPrint(BlockHashTable_List(I))
-Next I
-'    Create Texture Atlas
-Dim Shared TextureAtlasHeight As _Unsigned Long
-TextureAtlasHeight = TextureSize * Textures(TotalTextures).Y + _Height(Textures(TotalTextures).Handle)
-TextureAtlas = _NewImage(TextureSize, TextureAtlasHeight, 32)
-For I = 1 To TotalTextures
-    _PutImage (0, TextureSize * Textures(I).Y), Textures(I).Handle, TextureAtlas
-    _FreeImage Textures(I).Handle
-Next I
-
-GL_CURRENT_STATE = CONST_GL_STATE_CREATE_TEXTURES
-While GL_CURRENT_STATE: Wend
 '--------------
 
 '--- Noise ---
@@ -202,12 +178,10 @@ Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
 
-'    Debug
-'    -----
-
+$Checking:Off
 Do
     On Error GoTo ErrHandler
-    _Limit 60
+    '_Limit 2400
     If _Resize Then
         tmpScreenWidth = _ResizeWidth
         tmpScreenHeight = _ResizeHeight
@@ -242,125 +216,133 @@ Do
         Case CONST_GL_STATE_GAMEPLAY
     End Select
     '--- Chunk Load ---
-    $Checking:Off
-    LoadChunk~` = 0
+    LoadChunkCount = 0
     tmpTotalChunksLoaded = 0
-    ChunkID = 0
+    ChunkIDCount = 0
     RenderChunksStart.X = PlayerChunk.X - RenderDistance / 2
     RenderChunksStart.Z = PlayerChunk.Z - RenderDistance / 2
     RenderChunksEnd.X = PlayerChunk.X + RenderDistance / 2
     RenderChunksEnd.Z = PlayerChunk.Z + RenderDistance / 2
     ReDim LoadedChunks(RenderChunksStart.X To RenderChunksEnd.X, RenderChunksStart.Z To RenderChunksEnd.Z) As _Unsigned Long
     For I = 1 To MaxChunks
-        If Chunks(I).DataLoaded < 253 Then ChunkID = IIF(ChunkID, ChunkID, I): _Continue
+        If Chunks(I).DataLoaded < 253 Then
+            If ChunkIDCount < LoadChunkBufferSize Then
+                Mid$(LoadChunk, 9 + 12 * ChunkIDCount, 4) = MKL$(I)
+                ChunkIDCount = ChunkIDCount + 1
+            End If
+            _Continue
+        End If
         If InRange(RenderChunksStart.X, Chunks(I).X, RenderChunksEnd.X) And InRange(RenderChunksStart.Z, Chunks(I).Z, RenderChunksEnd.Z) Then 'Mark Chunks (only loaded)
             LoadedChunks(Chunks(I).X, Chunks(I).Z) = I
             tmpTotalChunksLoaded = tmpTotalChunksLoaded + 1
         Else 'Unload Chunks
-            Chunks(I).DataLoaded = 0
+            Chunks(I).DataLoaded = 252
             Chunks(I).VerticesCount = 0
         End If
     Next I
     TotalChunksLoaded = tmpTotalChunksLoaded
     Dim As Vec3_Long tmpChunksStart, tmpChunksEnd
-    For R = 0 To RenderDistance
-        tmpChunksStart.X = PlayerChunk.X - R
-        tmpChunksEnd.X = PlayerChunk.X + R
-        tmpChunksStart.Z = PlayerChunk.Z - R
-        tmpChunksEnd.Z = PlayerChunk.Z + R
+    For R = 0 To RenderDistance / 2
+        tmpChunksStart.X = Clamp(RenderChunksStart.X, PlayerChunk.X - R, RenderChunksEnd.X)
+        tmpChunksEnd.X = Clamp(RenderChunksStart.X, PlayerChunk.X + R, RenderChunksEnd.X)
+        tmpChunksStart.Z = Clamp(RenderChunksStart.Z, PlayerChunk.Z - R, RenderChunksEnd.Z)
+        tmpChunksEnd.Z = Clamp(RenderChunksStart.Z, PlayerChunk.Z + R, RenderChunksEnd.Z)
         For X = tmpChunksStart.X To tmpChunksEnd.X
             For Z = tmpChunksStart.Z To tmpChunksEnd.Z
                 If LoadedChunks(X, Z) = 0 Then 'Load Chunk if mark unloaded
-                    LoadChunk.X = X
-                    LoadChunk.Z = Z
-                    LoadChunk~` = 1
-                    GoTo __CHUNK_LOAD_EXIT_FOR
+                    Mid$(LoadChunk, 1 + 12 * LoadChunkCount, 4) = MKL$(X)
+                    Mid$(LoadChunk, 5 + 12 * LoadChunkCount, 4) = MKL$(Z)
+                    LoadChunkCount = LoadChunkCount + 1
+                    If LoadChunkCount = LoadChunkBufferSize Then GoTo __CHUNK_LOAD_EXIT_FOR
                 End If
     Next Z, X, R
     __CHUNK_LOAD_EXIT_FOR:
-    $Checking:On
     '------------------
+    If LoadChunkCount = 0 Then GoTo __SKIP_LOAD_CHUNKS
     '--- Load Chunks ---
-    $Checking:Off
-    If LoadChunk~` And ChunkID > 0 Then
-        Select Case Chunks(ChunkID).DataLoaded And (Chunks(ChunkID).X = LoadChunk.X And Chunks(ChunkID).Z = LoadChunk.Z)
-            Case 0 '    Load Chunk Data
-                PX = LoadChunk.X * 16
-                PZ = LoadChunk.Z * 16
-                Chunks(ChunkID).TX = PX
-                Chunks(ChunkID).TZ = PZ
-                TransparentBlocksCount = 0
-                Dim As Integer Height, SurfaceHeight
-                For X = 0 To 17
-                    For Z = 0 To 17
-                        Height = getHeight~%%(PX + X, PZ + Z)
-                        SurfaceHeight = Height - 2
-                        For Y = 0 To 257
-                            Select Case Y
-                                Case Is < SurfaceHeight: Block~%% = getBlockID("stone")
-                                Case SurfaceHeight To Height - 1: Block~%% = getBlockID("dirt")
-                                Case Height: Block~%% = getBlockID("grass")
-                                Case Else: Block~%% = 0
-                            End Select
-                            If Y <= WaterLevel And Height <= Y Then Block~%% = getBlockID("water")
-                            ChunksData(X, Y, Z, ChunkID).Block = Block~%%
-                            TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block~%%)
+    LoadChunkI = ClampCycle(1, LoadChunkI + 1, LoadChunkCount)
+    LoadChunkX = CVL(Mid$(LoadChunk, 12 * LoadChunkI - 11, 4))
+    LoadChunkZ = CVL(Mid$(LoadChunk, 12 * LoadChunkI - 7, 4))
+    ChunkID = CVL(Mid$(LoadChunk, 12 * LoadChunkI - 3, 4))
+    __LOADCHUNKSELECTCASE:
+    Select Case Chunks(ChunkID).DataLoaded And (Chunks(ChunkID).X = LoadChunkX And Chunks(ChunkID).Z = LoadChunkZ)
+        Case 0 '    Load Chunk Data
+            PX = LoadChunkX * 16
+            PZ = LoadChunkZ * 16
+            Chunks(ChunkID).TX = PX
+            Chunks(ChunkID).TZ = PZ
+            TransparentBlocksCount = 0
+            For X = 0 To 17
+                For Z = 0 To 17
+                    Height = getHeight~%%(PX + X, PZ + Z)
+                    Asc(HeightMap, X + 18 * Z + 1) = Height
+                    SurfaceHeight = Height - 2
+                    For Y = 0 To 257
+                        Select Case Y
+                            Case Is < SurfaceHeight: Block~%% = getBlockID("stone")
+                            Case SurfaceHeight To Height - 1: Block~%% = getBlockID("dirt")
+                            Case Height: Block~%% = getBlockID("grass")
+                            Case Else: Block~%% = 0
+                        End Select
+                        If Y <= WaterLevel And Height <= Y Then Block~%% = getBlockID("water")
+                        ChunksData(X, Y, Z, ChunkID).Block = Block~%%
+                        TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block~%%)
+                    Next Y
+            Next Z, X
+            For X = 0 To 17
+                For Z = 0 To 17
+                    Height = Asc(HeightMap, X + 18 * Z + 1)
+                    SurfaceHeight = Height - 2
+                    If fractal2(PX + X, PZ + Z, 4, 1, 2) * fractal2(PX + X, PZ + Z, 4, 1, 3) > 0.9 And Height >= WaterLevel - 2 Then
+                        TreeHeight = fractal2(PX + X, PZ + Z, 256, 0, 2) * 5 + 2
+                        For Y = 1 To TreeHeight
+                            ChunksData(X, Y + Height, Z, ChunkID).Block = getBlockID("oak_log")
                         Next Y
-                Next Z, X
-                For X = 0 To 17
-                    For Z = 0 To 17
-                        Height = getHeight~%%(PX + X, PZ + Z)
-                        SurfaceHeight = Height - 2
-                        If fractal2(PX + X, PZ + Z, 4, 1, 2) * fractal2(PX + X, PZ + Z, 4, 1, 3) > 0.9 And Height >= WaterLevel - 2 Then
-                            TreeHeight = fractal2(PX + X, PZ + Z, 256, 0, 2) * 5 + 2
-                            For Y = 1 To TreeHeight
-                                ChunksData(X, Y + Height, Z, ChunkID).Block = getBlockID("oak_log")
-                            Next Y
-                            For XX = X - 1 To X + 1
-                                For ZZ = Z - 1 To Z + 1
-                                    For Y = 0 To 1
-                                        If XX = X And ZZ = Z And Y = 0 Then _Continue
-                                        If XX >= 0 And XX <= 17 And ZZ >= 0 And ZZ <= 17 Then
-                                            ChunksData(XX, Y + Height + TreeHeight - 1, ZZ, ChunkID).Block = getBlockID("oak_leaves")
-                                        End If
-                                    Next Y
-                            Next ZZ, XX
+                        For XX = X - 1 To X + 1
+                            For ZZ = Z - 1 To Z + 1
+                                For Y = 0 To 1
+                                    If XX = X And ZZ = Z And Y = 0 Then _Continue
+                                    If XX >= 0 And XX <= 17 And ZZ >= 0 And ZZ <= 17 Then
+                                        ChunksData(XX, Y + Height + TreeHeight - 1, ZZ, ChunkID).Block = getBlockID("oak_leaves")
+                                    End If
+                                Next Y
+                        Next ZZ, XX
+                    End If
+            Next Z, X
+            Chunks(ChunkID).X = LoadChunkX
+            Chunks(ChunkID).Z = LoadChunkZ
+            If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255 Else Chunks(ChunkID).DataLoaded = 1
+        Case 1: '    Calculate Light Data
+            For X = 0 To 17: For Z = 0 To 17
+                    __TOGGLE` = 0
+                    For Y = 257 To 0 Step -1
+                        __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
+                        ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
+            Next Y, Z, X
+            Chunks(ChunkID).DataLoaded = 2
+        Case 2 To 16
+            I = 17 - Chunks(ChunkID).DataLoaded
+            For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
+                        If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
+                        If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
+                            ChunksData(X, Y, Z, ChunkID).Light = I - 1
                         End If
-                Next Z, X
-                Chunks(ChunkID).X = LoadChunk.X
-                Chunks(ChunkID).Z = LoadChunk.Z
-                If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255 Else Chunks(ChunkID).DataLoaded = 1
-            Case 1: '    Calculate Light Data
-                For X = 0 To 17: For Z = 0 To 17
-                        __TOGGLE` = 0
-                        For Y = 257 To 0 Step -1
-                            __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
-                            ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
-                Next Y, Z, X
-                Chunks(ChunkID).DataLoaded = 2
-            Case 2 To 16
-                I = 17 - Chunks(ChunkID).DataLoaded
-                For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
-                            If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
-                            If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
-                                ChunksData(X, Y, Z, ChunkID).Light = I - 1
-                            End If
-                Next Y, Z, X
-                Chunks(ChunkID).DataLoaded = Chunks(ChunkID).DataLoaded + 1
-            Case 17:
-                If ChunkLoadQueue(NewChunkLoadQueue) = 0 Then
-                    ChunkLoadQueue(NewChunkLoadQueue) = ChunkID
-                    Chunks(ChunkID).DataLoaded = 253
-                    File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
-                End If
-                NewChunkLoadQueue = NewChunkLoadQueue + 1
-        End Select
-    End If
-    $Checking:On
+            Next Y, Z, X
+            Chunks(ChunkID).DataLoaded = Chunks(ChunkID).DataLoaded + 1
+        Case 17:
+            If ChunkLoadQueue(NewChunkLoadQueue) = 0 Then
+                ChunkLoadQueue(NewChunkLoadQueue) = ChunkID
+                Chunks(ChunkID).DataLoaded = 253
+                File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
+            End If
+            NewChunkLoadQueue = NewChunkLoadQueue + 1
+    End Select
     '-------------------
+    __SKIP_LOAD_CHUNKS:
     If _Exit Then Exit Do
     LFPSCount = LFPSCount + 1
 Loop
+$Checking:On
 '------------------
 '--- Free Assets ---
 GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
@@ -388,6 +370,7 @@ Sub SimulateCamera
     Clouds
 End Sub
 Sub Clouds Static
+    Exit Sub
     Static As Long CloudX, CloudZ
     Static FirstRun As _Unsigned _Byte
     Static As _Unsigned _Bit * 20 LightCloudsCurrentOffset, HeavyCloudsCurrentOffset
@@ -760,11 +743,11 @@ End Function
 Function getHeight~%% (X As Long, Z As Long) Static
     Dim As _Unsigned Integer SX, SZ
     SX = Seed: SZ = _SHR(Seed, 16)
-    L! = fractal2(X - SX, Z - SZ, 256, 0, 0)
-    H! = fractal2(X - SX, Z - SZ, 64, 2, 1)
-    I! = fractal2(X - SX, Z - SZ, 256, 0, 2)
+    L! = fractal2(X - SX, Z - SZ, 1024, 0, 0)
+    H! = fractal2(X - SX, Z - SZ, 256, 2, 1)
+    I! = fractal2(X - SX, Z - SZ, 1024, 0, 2)
     N! = interpolate(L!, H!, I!)
-    getHeight~%% = N! * 256
+    getHeight~%% = N! * 192
 End Function
 Function LoadAsset& (FILE$)
     If _FileExists("assets/blocks/" + FILE$ + ".png") Then LoadAsset& = _LoadImage("assets/blocks/" + FILE$ + ".png", 32): Exit Function
