@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 32
+Const MaxRenderDistance = 16
 Const WaterLevel = 63
 '---------------------------
 Const MaxRenderDistanceX = MaxRenderDistance + 1
@@ -94,14 +94,14 @@ Dim As String * 324 HeightMap
 
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd
 Dim LoadChunk As String, LoadChunkCount As _Unsigned _Byte
-Const LoadChunkBufferSize = 4
+Const LoadChunkBufferSize = 16
 LoadChunk = String$(12 * LoadChunkBufferSize, 0)
 Dim As Long LoadChunkX, LoadChunkZ
 Dim ChunkID As _Unsigned Long
 Dim As _Unsigned Long tmpTotalChunksLoaded
 '    Chunk Load Queue
-Dim Shared As _Unsigned Long ChunkLoadQueue(0 To 255)
-Dim As _Unsigned _Byte NewChunkLoadQueue
+Dim Shared As _Unsigned Long ChunkLoadQueue(0 To 65535)
+Dim As _Unsigned Integer NewChunkLoadQueue
 '--------------
 
 '--- Player ---
@@ -335,6 +335,8 @@ Do
                 ChunkLoadQueue(NewChunkLoadQueue) = ChunkID
                 Chunks(ChunkID).DataLoaded = 253
                 File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
+            Else
+                Write_Log "Cannot Load Chunk Data: " + _Trim$(Str$(Chunks(ChunkID).X)) + Str$(Chunks(ChunkID).Z) + ": Queue Full"
             End If
             NewChunkLoadQueue = NewChunkLoadQueue + 1
     End Select
@@ -625,9 +627,11 @@ Sub _GL
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
     End Select
+
     'Load Chunk Render Data
     Dim As _Unsigned Long ChunkID
-    For I = 0 To 255
+    For I = 0 To 65535
+        If GFPSCount Mod 2 Then Exit For
         If ChunkLoadQueue(I) = 0 Then _Continue
         ChunkID = ChunkLoadQueue(I)
         Select Case Chunks(ChunkID).DataLoaded
@@ -683,7 +687,7 @@ Sub _GL
                             Next I
                 Next Z, Y, X
                 If Mode = 254 Then
-                    File_Log "Render Data Loaded:" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
+                    File_Log "Render Data Loaded(" + _Trim$(Str$(Chunks(ChunkID).X)) + "," + _Trim$(Str$(Chunks(ChunkID).Z)) + "):" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
                     TotalChunksLoaded = TotalChunksLoaded + 1
                     ChunkLoadQueue(I) = 0
                 End If
