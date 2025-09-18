@@ -94,7 +94,7 @@ Dim As String * 324 HeightMap
 
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd
 Dim LoadChunk As String, LoadChunkCount As _Unsigned _Byte
-Const LoadChunkBufferSize = 16
+Const LoadChunkBufferSize = 4
 LoadChunk = String$(12 * LoadChunkBufferSize, 0)
 Dim As Long LoadChunkX, LoadChunkZ
 Dim ChunkID As _Unsigned Long
@@ -156,6 +156,7 @@ While _Resize: Wend
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
 Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+Write_Log "Seed: " + Hex$(Seed) + "h"
 Clouds 'Initialize Clouds
 '-------------
 
@@ -475,12 +476,6 @@ Sub _GL
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_GAMEPLAY
-            While _MouseInput
-                _MouseHide
-                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 360)
-                Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
-                _MouseMove _Width / 2, _Height / 2
-            Wend
             SimulateCamera
             '--- Movement ---
             If _KeyDown(87) Or _KeyDown(119) Then MoveEntity Player, Player.Angle.X - 90, Player.Speed / GFPS
@@ -743,11 +738,11 @@ End Function
 Function getHeight~%% (X As Long, Z As Long) Static
     Dim As _Unsigned Integer SX, SZ
     SX = Seed: SZ = _SHR(Seed, 16)
-    L! = fractal2(X - SX, Z - SZ, 1024, 0, 0)
-    H! = fractal2(X - SX, Z - SZ, 256, 2, 1)
+    L! = fractal2(X - SX, Z - SZ, 1024, 0, 0) * 0.5
+    H! = fractal2(X - SX, Z - SZ, 64, 2, 1)
     I! = fractal2(X - SX, Z - SZ, 1024, 0, 2)
     N! = interpolate(L!, H!, I!)
-    getHeight~%% = N! * 192
+    getHeight~%% = N! * 256
 End Function
 Function LoadAsset& (FILE$)
     If _FileExists("assets/blocks/" + FILE$ + ".png") Then LoadAsset& = _LoadImage("assets/blocks/" + FILE$ + ".png", 32): Exit Function
