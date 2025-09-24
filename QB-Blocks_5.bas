@@ -467,7 +467,7 @@ Sub SetSkyColor (Colour&) Static
     SkyColorGreen! = SkyColorGreen~%% / 255
     SkyColorBlue! = SkyColorBlue~%% / 255
 End Sub
-Sub _GL
+Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
     Static As _Unsigned Long tmpChunksVisible, tmpQuadsVisible: tmpChunksVisible = 0: tmpQuadsVisible = 0
     Static As _Unsigned Long ChunksVisible, QuadsVisible
@@ -563,7 +563,7 @@ Sub _GL
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi)
             _glTranslatef 0, -Sin(TransparentTranslateY) * 0.1, 0
             For I = 1 To MaxChunks
-                tmpChunksVisible = tmpChunksVisible - ((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) > 0) And (Chunks(I).DataLoaded = 255)
+                tmpChunksVisible = tmpChunksVisible + IIF((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
                 _glPushMatrix
@@ -631,7 +631,6 @@ Sub _GL
     'Load Chunk Render Data
     Dim As _Unsigned Long ChunkID
     For I = 0 To 65535
-        If GFPSCount Mod 2 Then Exit For
         If ChunkLoadQueue(I) = 0 Then _Continue
         ChunkID = ChunkLoadQueue(I)
         Select Case Chunks(ChunkID).DataLoaded
