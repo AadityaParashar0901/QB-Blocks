@@ -575,7 +575,7 @@ Sub _GL Static
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
             Next I
-            _glTranslatef 0, Sin(TransparentTranslateY) / 16, 0
+            _glTranslatef 0, Sin(TransparentTranslateY) * 0.1, 0
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
             _glDisableClientState _GL_COLOR_ARRAY
