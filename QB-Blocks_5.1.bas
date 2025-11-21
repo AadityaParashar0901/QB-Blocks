@@ -442,7 +442,9 @@ Function getHeight% (X As Long, Z As Long) Static
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX
     PZ = Z - SZ
-    getHeight% = fractal2(PX, PZ, 256, 0, 0) * 128 + fractal2(PX, PZ, 64, 3, 0) * 128
+    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * 128
+    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1)
+    getHeight% = GroundHeight! + ExcitedHeight! * ExcitedHeight! * 128
 End Function
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
