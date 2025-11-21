@@ -19,8 +19,9 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 32
 Const WaterLevel = 63
+Const FastChunkLoading = 0
 '---------------------------
 Const MaxRenderDistanceX = MaxRenderDistance + 1
 Const MaxRenderDistanceZ = MaxRenderDistance + 1
@@ -94,7 +95,7 @@ Dim As String * 324 HeightMap
 
 Dim As Vec3_Long RenderChunksStart, RenderChunksEnd
 Dim LoadChunk As String, LoadChunkCount As _Unsigned _Byte
-Const LoadChunkBufferSize = 16
+Const LoadChunkBufferSize = 4 - 12 * FastChunkLoading
 LoadChunk = String$(12 * LoadChunkBufferSize, 0)
 Dim As Long LoadChunkX, LoadChunkZ
 Dim ChunkID As _Unsigned Long
@@ -155,7 +156,7 @@ While _Resize: Wend
 '--- Noise ---
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
-Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+If _CommandCount Then Seed = Val("&H" + Command$) Else Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
 Write_Log "Seed: " + Hex$(Seed) + "h"
 Clouds 'Initialize Clouds
 '-------------
@@ -178,11 +179,12 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
+_FPS 60
 
 $Checking:Off
 Do
     On Error GoTo ErrHandler
-    '_Limit 2400
+    _Limit 2400
     If _Resize Then
         tmpScreenWidth = _ResizeWidth
         tmpScreenHeight = _ResizeHeight
@@ -216,6 +218,7 @@ Do
             End Select
         Case CONST_GL_STATE_GAMEPLAY
     End Select
+
     '--- Chunk Load ---
     LoadChunkCount = 0
     tmpTotalChunksLoaded = 0
@@ -273,16 +276,23 @@ Do
             Chunks(ChunkID).TX = PX
             Chunks(ChunkID).TZ = PZ
             TransparentBlocksCount = 0
+            Dim As _Unsigned _Byte BiomeBlock
             For X = 0 To 17
                 For Z = 0 To 17
                     Height = getHeight~%%(PX + X, PZ + Z)
                     Asc(HeightMap, X + 18 * Z + 1) = Height
                     SurfaceHeight = Height - 2
+                    BiomeBlock = Int(getBiomeNoise(PX + X, PZ + Z) * 3)
+                    Select Case BiomeBlock
+                        Case 0: BiomeBlock = getBlockID("sand")
+                        Case 1: BiomeBlock = getBlockID("grass")
+                        Case 2: BiomeBlock = getBlockID("snow")
+                    End Select
                     For Y = 0 To 257
                         Select Case Y
                             Case Is < SurfaceHeight: Block~%% = getBlockID("stone")
                             Case SurfaceHeight To Height - 1: Block~%% = getBlockID("dirt")
-                            Case Height: Block~%% = getBlockID("grass")
+                            Case Height: Block~%% = BiomeBlock
                             Case Else: Block~%% = 0
                         End Select
                         If Y <= WaterLevel And Height <= Y Then Block~%% = getBlockID("water")
@@ -296,18 +306,25 @@ Do
                     SurfaceHeight = Height - 2
                     If fractal2(PX + X, PZ + Z, 4, 1, 2) * fractal2(PX + X, PZ + Z, 4, 1, 3) > 0.9 And Height >= WaterLevel - 2 Then
                         TreeHeight = fractal2(PX + X, PZ + Z, 256, 0, 2) * 5 + 2
-                        For Y = 1 To TreeHeight
-                            ChunksData(X, Y + Height, Z, ChunkID).Block = getBlockID("oak_log")
+                        BiomeBlock = Int(getBiomeNoise(PX + X, PZ + Z) * 3)
+                        Select Case BiomeBlock
+                            Case 0: Exit For
+                            Case 1: TreeLog = getBlockID("oak_log"): TreeLeaves = getBlockID("oak_leaves")
+                            Case 2: TreeLog = getBlockID("spruce_log"): TreeLeaves = getBlockID("spruce_leaves"): TreeHeight = TreeHeight + 2
+                        End Select
+                        Y2 = TreeHeight + IIF(BiomeBlock = 2, 3, 0)
+                        For Y = 1 To Y2
+                            ChunksData(X, Y + Height, Z, ChunkID).Block = TreeLog
                         Next Y
-                        For XX = X - 1 To X + 1
-                            For ZZ = Z - 1 To Z + 1
-                                For Y = 0 To 1
+                        For Y = 0 To 2 * BiomeBlock Step BiomeBlock
+                            Y2 = 1 - Y + 2 * BiomeBlock
+                            For XX = X - Y2 To X + Y2
+                                For ZZ = Z - Y2 To Z + Y2
                                     If XX = X And ZZ = Z And Y = 0 Then _Continue
                                     If XX >= 0 And XX <= 17 And ZZ >= 0 And ZZ <= 17 Then
-                                        ChunksData(XX, Y + Height + TreeHeight - 1, ZZ, ChunkID).Block = getBlockID("oak_leaves")
+                                        ChunksData(XX, Y + Height + TreeHeight - 1, ZZ, ChunkID).Block = TreeLeaves
                                     End If
-                                Next Y
-                        Next ZZ, XX
+                        Next ZZ, XX, Y
                     End If
             Next Z, X
             Chunks(ChunkID).X = LoadChunkX
@@ -318,9 +335,9 @@ Do
                     __TOGGLE` = 0
                     For Y = 257 To 0 Step -1
                         __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
-                        ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0)
+                        ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17)) Or (12 And FastChunkLoading)
             Next Y, Z, X
-            Chunks(ChunkID).DataLoaded = 2
+            Chunks(ChunkID).DataLoaded = 2 - 15 * FastChunkLoading
         Case 2 To 16
             I = 17 - Chunks(ChunkID).DataLoaded
             For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
@@ -374,6 +391,7 @@ Sub SimulateCamera
 End Sub
 Sub Clouds Static
     Exit Sub
+    Const CloudSize = 2
     Static As Long CloudX, CloudZ
     Static FirstRun As _Unsigned _Byte
     Static As _Unsigned _Bit * 20 LightCloudsCurrentOffset, HeavyCloudsCurrentOffset
@@ -389,12 +407,12 @@ Sub Clouds Static
         HeavyCloudsLowerLimitZ = 0
         For CloudZ = -512 To 512
             For CloudX = -512 To 512
-                Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
+                Select Case (fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7) + fractal2(CloudX - 128, CloudZ - 128, 64, 3, 7)) / 2
                     Case 0.1 To 0.4
                         For I = 12 To 15
-                            CloudVertices(LightCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                            CloudVertices(LightCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, CloudSize)
                             CloudVertices(LightCloudsCurrentOffset).Y = 384 + CubeVertices(I).Y
-                            CloudVertices(LightCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
+                            CloudVertices(LightCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, CloudSize)
                             CloudColors(LightCloudsCurrentOffset).X = 255
                             CloudColors(LightCloudsCurrentOffset).Y = 255
                             CloudColors(LightCloudsCurrentOffset).Z = 255
@@ -403,12 +421,12 @@ Sub Clouds Static
                         Next I
                     Case 0.7 To 0.9
                         For I = 12 To 15
-                            CloudVertices(HeavyCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
+                            CloudVertices(HeavyCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, CloudSize)
                             CloudVertices(HeavyCloudsCurrentOffset).Y = 320 + CubeVertices(I).Y
-                            CloudVertices(HeavyCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
-                            CloudColors(HeavyCloudsCurrentOffset).X = 223
-                            CloudColors(HeavyCloudsCurrentOffset).Y = 223
-                            CloudColors(HeavyCloudsCurrentOffset).Z = 223
+                            CloudVertices(HeavyCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, CloudSize)
+                            CloudColors(HeavyCloudsCurrentOffset).X = 191
+                            CloudColors(HeavyCloudsCurrentOffset).Y = 191
+                            CloudColors(HeavyCloudsCurrentOffset).Z = 191
                             CloudColors(HeavyCloudsCurrentOffset).W = 127
                             HeavyCloudsCurrentOffset = HeavyCloudsCurrentOffset + 1
                         Next I
@@ -422,7 +440,7 @@ Sub Clouds Static
     If LightCloudsTranslateZ > 16 + LightCloudsLowerLimitZ Then
         CloudZ = LightCloudsLowerLimitZ - 512
         For CloudX = -512 To 512
-            Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
+            Select Case (fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7) + fractal2(CloudX - 128, CloudZ - 128, 64, 3, 7)) / 2
                 Case 0.1 To 0.4
                     For I = 12 To 15
                         CloudVertices(LightCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
@@ -441,15 +459,15 @@ Sub Clouds Static
     If HeavyCloudsTranslateZ > 16 + HeavyCloudsLowerLimitZ Then
         CloudZ = HeavyCloudsLowerLimitZ - 512
         For CloudX = -512 To 512
-            Select Case fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7)
+            Select Case (fractal2(CloudX - 128, CloudZ - 128, 16, 3, 7) + fractal2(CloudX - 128, CloudZ - 128, 64, 3, 7)) / 2
                 Case 0.7 To 0.9
                     For I = 12 To 15
                         CloudVertices(HeavyCloudsCurrentOffset).X = _SHL(CloudX + CubeVertices(I).X, 1)
                         CloudVertices(HeavyCloudsCurrentOffset).Y = 320 + CubeVertices(I).Y
                         CloudVertices(HeavyCloudsCurrentOffset).Z = _SHL(CloudZ + CubeVertices(I).Z, 1)
-                        CloudColors(HeavyCloudsCurrentOffset).X = 223
-                        CloudColors(HeavyCloudsCurrentOffset).Y = 223
-                        CloudColors(HeavyCloudsCurrentOffset).Z = 223
+                        CloudColors(HeavyCloudsCurrentOffset).X = 191
+                        CloudColors(HeavyCloudsCurrentOffset).Y = 191
+                        CloudColors(HeavyCloudsCurrentOffset).Z = 191
                         CloudColors(HeavyCloudsCurrentOffset).W = 127
                         HeavyCloudsCurrentOffset = HeavyCloudsCurrentOffset + 1
                     Next I
@@ -515,7 +533,7 @@ Sub _GL Static
             _glEnable _GL_LINE_SMOOTH
             _glEnable _GL_POLYGON_SMOOTH
             _glEnable _GL_POINT_SMOOTH
-            '_glDisable _GL_MULTISAMPLE
+            _glDisable _GL_MULTISAMPLE
 
             _glEnable _GL_DEPTH_TEST
             _glEnable _GL_CULL_FACE
@@ -739,13 +757,41 @@ Function getBlockID~% (BlockName$) Static
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
 Function getHeight~%% (X As Long, Z As Long) Static
-    Dim As _Unsigned Integer SX, SZ
+    Static As Integer SX, SZ
+    Static As Long __X, __Z
     SX = Seed: SZ = _SHR(Seed, 16)
-    L! = fractal2(X - SX, Z - SZ, 1024, 0, 0) * 0.5
-    H! = fractal2(X - SX, Z - SZ, 64, 2, 1)
-    I! = fractal2(X - SX, Z - SZ, 1024, 0, 2)
-    N! = interpolate(L!, H!, I!)
+    __X = X - SX: __Z = Z - SZ
+    GroundHeight! = fractal2(__X, __Z, 256, 0, 0)
+    SmoothHeight! = fractal2(__X, __Z, 128, 0, 1)
+    ExcitedHeight! = fractal2(__X, __Z, 64, 3, 2)
+    BiomeNoise! = getBiomeNoise!(X, Z)
+    N! = interpolate(GroundHeight!, Spline!(GroundHeight!), BiomeNoise!) + interpolate(SmoothHeight!, ExcitedHeight! * ExcitedHeight!, BiomeNoise!)
+    N! = N! / 2
     getHeight~%% = N! * 256
+End Function
+Function Spline! (X!)
+    If X! <= 0.4 Then
+        Spline! = X!
+    ElseIf X! <= 0.5 Then
+        Spline! = 2 - 4 * X!
+    ElseIf X! <= 0.6 Then
+        Spline! = 6 * X! - 3
+    Else
+        Spline! = X!
+    End If
+End Function
+Function getBiomeNoise! (X As Long, Z As Long) Static
+    Static As Integer SX, SZ
+    Static Hashed As Single, HashX As Long, HashZ As Long
+    If HashX = X And HashZ = Z And Hashed <> 0 Then
+        getBiomeNoise! = Hashed
+        Exit Function
+    End If
+    HashX = X
+    HashZ = Z
+    SX = Seed: SZ = _SHR(Seed, 16)
+    Hashed = (fractal2(X - SX, Z - SZ, 1024, 0, 4) + fractal2(X - SX, Z - SZ, 256, 0, 5)) / 2
+    getBiomeNoise! = Hashed
 End Function
 Function LoadAsset& (FILE$)
     If _FileExists("assets/blocks/" + FILE$ + ".png") Then LoadAsset& = _LoadImage("assets/blocks/" + FILE$ + ".png", 32): Exit Function

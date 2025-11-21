@@ -8,6 +8,14 @@ textures {
 	oak_log_top;
 	oak_leaves;
 	oak_planks;
+	snow;
+	grass_block_snow;
+	sand;
+	spruce_log;
+	spruce_log_top;
+	spruce_leaves;
+	spruce_planks;
+	stone_bricks;
 	water_still;
 }
 blocks {
@@ -17,5 +25,11 @@ blocks {
 	name = "oak_log", textures = [5, 5, 6, 6, 5, 5];
 	name = "oak_leaves", textures = 7;
 	name = "oak_planks", textures = 8;
-	name = "water", textures = 9, transparent, omit;
+	name = "snow", textures = [10, 10, 9, 3, 10, 10];
+	name = "sand", textures = 11;
+	name = "spruce_log", textures = [12, 12, 13, 13, 12, 12];
+	name = "spruce_leaves", textures = 14;
+	name = "spruce_planks", textures = 15;
+	name = "stone_bricks", textures = 16;
+	name = "water", textures = 17, transparent, omit;
 }
