@@ -1,0 +1,12 @@
+# BIOMES #
+biomes {
+	name = "plains",
+	tree_log = "oak_log",
+	tree_leaves = "oak_leaves",
+	tree_height = 3 ~ 5;
+	name = "snow",
+	tree_log = "spruce_log",
+	tree_leaves = "spruce_leaves",
+	tree_height = 5 ~ 7;
+	name = "desert";
+}

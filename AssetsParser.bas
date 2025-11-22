@@ -11,7 +11,7 @@ FileContents = String$(LOF(1), 0)
 Get #1, , FileContents
 Close #1
 FileContents = Tokenizer$(FileContents)
-Write_Log FileContents
+Write_Log "Assets: " + ListStringPrint(FileContents)
 CurrentMode = 0
 For I = 1 To ListStringLength(FileContents)
     CurrentListElement$ = ListStringGet(FileContents, I)
@@ -75,8 +75,7 @@ For I = 1 To ListStringLength(FileContents)
                     ReDim _Preserve Shared Blocks(1 To CurrentBlockID) As BlockData
                     ReDim _Preserve Shared isTransparent(0 To CurrentBlockID) As _Unsigned _Bit
                     ReDim _Preserve Shared omitBlockFace(0 To CurrentBlockID, 0 To 5) As _Unsigned _Bit
-                    Blocks(CurrentBlockID).Name = ListStringGet(FileContents, I)
-                    Blocks(CurrentBlockID).Name = Mid$(Blocks(CurrentBlockID).Name, 2, Len(Blocks(CurrentBlockID).Name) - 2)
+                    Blocks(CurrentBlockID).Name = RemoveDoubleQoutes$(ListStringGet(FileContents, I))
                     BlockMode = 1
                     Write_Log "Block Name(" + ByteToHex$(CurrentBlockID) + "): " + Blocks(CurrentBlockID).Name
                 Case "textures": If BlockMode = 0 Then _Continue

@@ -134,6 +134,10 @@ While _Resize: Wend
 '$Include:'AssetsParser.bas'
 '--------------
 
+'--- Biomes ---
+'$Include:'BiomesParser.bas'
+'--------------
+
 '--- Noise ---
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
@@ -487,7 +491,16 @@ End Sub
 '$Include:'lib/transitangle.bm'
 '$Include:'lib/hex.bm'
 '$Include:'lib/fade.bm'
+'$Include:'lib/ListMap.bas'
+'$Include:'lib/Map.bas'
 '-----------------
 Function IIFString$ (A~%%, B$, C$)
     If A~%% Then IIFString$ = B$ Else IIFString$ = C$
+End Function
+Function RemoveDoubleQoutes$ (__S$)
+    If Asc(__S$, 1) = 34 And Asc(__S$, Len(__S$)) = 34 Then
+        RemoveDoubleQoutes$ = Mid$(__S$, 2, Len(__S$) - 2)
+    Else
+        RemoveDoubleQoutes$ = __S$
+    End If
 End Function

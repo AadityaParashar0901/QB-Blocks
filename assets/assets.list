@@ -1,3 +1,4 @@
+# ASSETS #
 texture_size = 16;
 textures {
 	grass_block_top;
