@@ -399,7 +399,7 @@ Sub _GL Static
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
                 PrintString 0, 80, "Terrain", White
-                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, Int(getBiome(Player.Position.X, Player.Position.Z)), "name"), White
+                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, 1 + Int(getBiome(Player.Position.X, Player.Position.Z)), "name"), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
