@@ -31,7 +31,6 @@ Sub RebuildChunkDataLoadQueue Static
                         ChunkID = getChunkID(X, Z)
                         If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded <> 255 Then
                             ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
-
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
                                 TotalChunksLoaded = TotalChunksLoaded - 1
@@ -50,12 +49,14 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
     Static As Integer Height
-    Static As _Unsigned _Byte Block, Block_Stone, Block_Dirt, Block_Grass, Block_Water
-    If Block_Stone = 0 Then
-        Block_Stone = getBlockID("stone")
-        Block_Dirt = getBlockID("dirt")
-        Block_Grass = getBlockID("grass")
+    Static As _Unsigned _Byte Block, Block_Water, BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
+    If Block_Water = 0 Then
         Block_Water = getBlockID("water")
+        For I = 0 To TotalBiomes - 1
+            BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I, "surface_block"))
+            BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I, "under_surface_block"))
+            BiomeBlocks(2, I) = getBlockID(ListMapGet(BiomesList, I, "underground_block"))
+        Next I
     End If
     ChunkID = getChunkID(CX, CZ)
     PX = CX * 16
@@ -70,12 +71,13 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     ' ChunkLoading
     For X = 0 To 17
         For Z = 0 To 17
-            Height = getHeight%(PX + X, PZ + Z)
+            Biome = getBiome%(PX + X, PZ + Z)
+            Height = getHeight%(PX + X, PZ + Z, Biome)
             For Y = 0 To 257
                 Select Case Y
-                    Case Is < Height - 2: Block = Block_Stone
-                    Case Height - 2 To Height - 1: Block = Block_Dirt
-                    Case Height: Block = Block_Grass
+                    Case Is < Height - 2: Block = BiomeBlocks(2, Biome)
+                    Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome)
+                    Case Height: Block = BiomeBlocks(0, Biome)
                     Case Else: Block = 0
                 End Select
                 If Height <= Y And Y <= WaterLevel Then Block = Block_Water

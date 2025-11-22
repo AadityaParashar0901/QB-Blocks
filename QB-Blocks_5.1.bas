@@ -203,7 +203,7 @@ Do
         Case CONST_GL_STATE_GAMEPLAY
     End Select
 
-    Select Case LFPSCount And 1
+    Select Case LFPSCount And 3
         Case 0: If Len(ChunkDataLoadQueue) Then
                 __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
                 LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
@@ -440,15 +440,21 @@ Function getBlockID~% (BlockName$) Static
     If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
-Function getHeight% (X As Long, Z As Long) Static
+Function getHeight% (X As Long, Z As Long, Biome As Integer) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
-    PX = X - SX
-    PZ = Z - SZ
+    PX = X - SX: PZ = Z - SZ
     GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * 128
     ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1)
     getHeight% = GroundHeight! + ExcitedHeight! * ExcitedHeight! * 128
+End Function
+Function getBiome% (X As Long, Z As Long) Static
+    Static As Integer SX, SZ
+    Static As Long PX, PZ
+    SX = _SHR(Seed, 16): SZ = Seed And 65535
+    PX = X - SX: PZ = Z - SZ
+    getBiome% = fractal2(PX, PZ, 256, 0, 0) * TotalBiomes
 End Function
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
@@ -497,10 +503,10 @@ End Sub
 Function IIFString$ (A~%%, B$, C$)
     If A~%% Then IIFString$ = B$ Else IIFString$ = C$
 End Function
-Function RemoveDoubleQoutes$ (__S$)
+Function RemoveDoubleQuotes$ (__S$)
     If Asc(__S$, 1) = 34 And Asc(__S$, Len(__S$)) = 34 Then
-        RemoveDoubleQoutes$ = Mid$(__S$, 2, Len(__S$) - 2)
+        RemoveDoubleQuotes$ = Mid$(__S$, 2, Len(__S$) - 2)
     Else
-        RemoveDoubleQoutes$ = __S$
+        RemoveDoubleQuotes$ = __S$
     End If
 End Function

@@ -1,5 +1,5 @@
 'BiomesParser
-Dim As String BiomesList
+Dim Shared As String BiomesList
 BiomesList = ListMapNew$
 Open "assets\biomes.list" For Binary As #1
 FileContents = String$(LOF(1), 0)
@@ -16,11 +16,9 @@ For I = 1 To ListStringLength(FileContents)
         Case 1: Select Case CurrentListElement$
                 Case "name": I = I + 2
                     Biome$ = MapNew$
-                    MapSetKey Biome$, "name", RemoveDoubleQoutes$(ListStringGet(FileContents, I))
-                Case "tree_log": I = I + 2
-                    MapSetKey Biome$, "tree_log", RemoveDoubleQoutes$(ListStringGet(FileContents, I))
-                Case "tree_leaves": I = I + 2
-                    MapSetKey Biome$, "tree_leaves", RemoveDoubleQoutes$(ListStringGet(FileContents, I))
+                    MapSetKey Biome$, "name", RemoveDoubleQuotes$(ListStringGet(FileContents, I))
+                Case "surface_block", "under_surface_block", "underground_block", "tree_log", "tree_leaves": I = I + 2
+                    MapSetKey Biome$, CurrentListElement$, RemoveDoubleQuotes$(ListStringGet(FileContents, I))
                 Case "tree_height": I = I + 2
                     MapSetKey Biome$, "tree_height_lower_limit", ListStringGet(FileContents, I)
                     If ListStringGet(FileContents, I + 1) = "~" Then
@@ -35,3 +33,5 @@ For I = 1 To ListStringLength(FileContents)
     End Select
 Next I
 Write_Log "Biomes: " + ListMapPrint(BiomesList)
+Dim Shared TotalBiomes As _Unsigned Integer
+TotalBiomes = ListMapLength(BiomesList)

@@ -17,6 +17,9 @@ textures {
 	spruce_leaves;
 	spruce_planks;
 	stone_bricks;
+	sandstone;
+	sandstone_bottom;
+	sandstone_top;
 	water_still;
 }
 blocks {
@@ -32,5 +35,6 @@ blocks {
 	name = "spruce_leaves", textures = 14;
 	name = "spruce_planks", textures = 15;
 	name = "stone_bricks", textures = 16;
-	name = "water", textures = 17, transparent, omit;
+	name = "sandstone", textures = [17, 17, 19, 18, 17, 17];
+	name = "water", textures = 20, transparent, omit;
 }

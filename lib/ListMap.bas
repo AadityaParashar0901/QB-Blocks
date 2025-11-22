@@ -39,8 +39,8 @@ Sub ListMapDelete (__ListMap$, __Position~&) Static
     __ListMap$ = Chr$(10) + __List$
 End Sub
 Function ListMapPrint$ (__ListMap$) Static
-    If Len(__ListMap$) < 6 Then Exit Sub
-    If Asc(__ListMap$) <> 10 Then Exit Sub
+    If Len(__ListMap$) < 6 Then Exit Function
+    If Asc(__ListMap$) <> 10 Then Exit Function
     __List$ = Mid$(__ListMap$, 2)
     __O$ = "["
     For __I~& = 1 To ListStringLength(__List$)
@@ -48,4 +48,9 @@ Function ListMapPrint$ (__ListMap$) Static
         If __I~& < ListStringLength(__List$) Then __O$ = __O$ + ","
     Next __I~&
     ListMapPrint$ = __O$ + "]"
+End Function
+Function ListMapLength~& (__ListMap$) Static
+    If Len(__ListMap$) < 6 Then ListMapLength~& = 0: Exit Function
+    If Asc(__ListMap$) <> 10 Then ListMapLength~& = 0: Exit Function
+    ListMapLength~& = CVL(Mid$(__ListMap$, 3, 4))
 End Function
