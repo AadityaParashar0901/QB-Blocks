@@ -39,7 +39,7 @@ Const ChunkDataSize = 196608
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
 Fov = 90
-Fog = 0
+Fog = 1
 RenderDistance = MaxRenderDistance
 '-----------------------------
 
@@ -136,6 +136,12 @@ While _Resize: Wend
 
 '--- Biomes ---
 '$Include:'BiomesParser.bas'
+Dim Shared As _Unsigned _Byte BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
+For I = 0 To TotalBiomes - 1
+    BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I + 1, "surface_block"))
+    BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I + 1, "under_surface_block"))
+    BiomeBlocks(2, I) = getBlockID(ListMapGet(BiomesList, I + 1, "underground_block"))
+Next I
 '--------------
 
 '--- Noise ---
@@ -320,10 +326,10 @@ Sub _GL Static
             If Fog Then
                 _glEnable _GL_FOG
                 _glFogi _GL_FOG_MODE, _GL_LINEAR
-                _glFogf _GL_FOG_END, 1024
-                _glFogf _GL_FOG_START, 8 * RenderDistance
+                _glFogf _GL_FOG_END, 256
+                _glFogf _GL_FOG_START, 16
                 _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
-                _glFogf _GL_FOG_DENSITY, 1
+                _glFogf _GL_FOG_DENSITY, 10 - Y / 100
             End If
 
             _glEnable _GL_TEXTURE_2D
@@ -392,6 +398,8 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
+                PrintString 0, 80, "Terrain", White
+                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, Int(getBiome(Player.Position.X, Player.Position.Z)), "name"), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
@@ -421,7 +429,7 @@ Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex 
     AmbientOcclusion = 255 - 15 * total
 End Function
 Function getHash~%% (T$) Static
-    Dim As _Unsigned Long I
+    Static As _Unsigned Long I
     B~%% = Asc(T$)
     For I = 2 To Len(T$) - 1
         B~%% = B~%% + Asc(T$, I)
@@ -434,27 +442,28 @@ Function getHash~%% (T$) Static
     getHash~%% = B~%% + Asc(T$, I)
 End Function
 Function getBlockID~% (BlockName$) Static
+    Static Hash~%%, Search~%
     Hash~%% = getHash~%%(BlockName$)
     If BlockHashTable_Length(Hash~%%) = 1 Then getBlockID~% = CVI(BlockHashTable_Code(Hash~%%)): Exit Function
     Search~% = ListStringSearch(BlockHashTable_List(Hash~%%), BlockName$)
     If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
-Function getHeight% (X As Long, Z As Long, Biome As Integer) Static
+Function getHeight% (X As Long, Z As Long, Biome As Single) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * 128
-    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1)
+    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * 128 * (Biome + 1) / TotalBiomes
+    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) * (Biome + 1) / TotalBiomes
     getHeight% = GroundHeight! + ExcitedHeight! * ExcitedHeight! * 128
 End Function
-Function getBiome% (X As Long, Z As Long) Static
+Function getBiome! (X As Long, Z As Long) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getBiome% = fractal2(PX, PZ, 256, 0, 0) * TotalBiomes
+    getBiome! = fractal2(PX, PZ, 256, 0, 0) * TotalBiomes
 End Function
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")

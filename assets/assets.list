@@ -20,6 +20,9 @@ textures {
 	sandstone;
 	sandstone_bottom;
 	sandstone_top;
+	cobblestone;
+	mossy_cobblestone;
+	deepslate;
 	water_still;
 }
 blocks {
@@ -36,5 +39,8 @@ blocks {
 	name = "spruce_planks", textures = 15;
 	name = "stone_bricks", textures = 16;
 	name = "sandstone", textures = [17, 17, 19, 18, 17, 17];
-	name = "water", textures = 20, transparent, omit;
+	name = "cobblestone", textures = 20;
+	name = "mossy_cobblestone", textures = 21;
+	name = "deepslate", textures = 22;
+	name = "water", textures = 23, transparent, omit;
 }

@@ -35,3 +35,4 @@ Next I
 Write_Log "Biomes: " + ListMapPrint(BiomesList)
 Dim Shared TotalBiomes As _Unsigned Integer
 TotalBiomes = ListMapLength(BiomesList)
+Write_Log "Total Biomes = " + Hex$(TotalBiomes)

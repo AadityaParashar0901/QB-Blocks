@@ -49,14 +49,10 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
     Static As Integer Height
-    Static As _Unsigned _Byte Block, Block_Water, BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
+    Static As _Unsigned _Byte Block, Block_Water, BiomeSelector
+    Static As Single Biome
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
-        For I = 0 To TotalBiomes - 1
-            BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I, "surface_block"))
-            BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I, "under_surface_block"))
-            BiomeBlocks(2, I) = getBlockID(ListMapGet(BiomesList, I, "underground_block"))
-        Next I
     End If
     ChunkID = getChunkID(CX, CZ)
     PX = CX * 16
@@ -71,13 +67,14 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     ' ChunkLoading
     For X = 0 To 17
         For Z = 0 To 17
-            Biome = getBiome%(PX + X, PZ + Z)
+            Biome = getBiome!(PX + X, PZ + Z)
+            BiomeSelector = Int(Biome)
             Height = getHeight%(PX + X, PZ + Z, Biome)
             For Y = 0 To 257
                 Select Case Y
-                    Case Is < Height - 2: Block = BiomeBlocks(2, Biome)
-                    Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome)
-                    Case Height: Block = BiomeBlocks(0, Biome)
+                    Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)
+                    Case Height - 2 To Height - 1: Block = BiomeBlocks(1, BiomeSelector)
+                    Case Height: Block = BiomeBlocks(0, BiomeSelector)
                     Case Else: Block = 0
                 End Select
                 If Height <= Y And Y <= WaterLevel Then Block = Block_Water

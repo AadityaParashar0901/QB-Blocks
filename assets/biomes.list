@@ -1,5 +1,17 @@
 # BIOMES #
 biomes {
+	name = "deep_ocean",
+	surface_block = "cobblestone",
+	under_surface_block = "mossy_cobblestone",
+	underground_block = "deepslate";
+	name = "ocean",
+	surface_block = "dirt",
+	under_surface_block = "stone",
+	underground_block = "stone";
+	name = "desert",
+	surface_block = "sand",
+	under_surface_block = "sand",
+	underground_block = "sandstone";
 	name = "plains",
 	surface_block = "grass",
 	under_surface_block = "dirt",
@@ -10,12 +22,8 @@ biomes {
 	name = "snow",
 	surface_block = "snow",
 	under_surface_block = "dirt",
-	underground_block = "stone"
+	underground_block = "stone",
 	tree_log = "spruce_log",
 	tree_leaves = "spruce_leaves",
 	tree_height = 5 ~ 7;
-	name = "desert",
-	surface_block = "sand",
-	under_surface_block = "sand",
-	underground_block = "sandstone";
 }
