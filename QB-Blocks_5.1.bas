@@ -21,7 +21,8 @@ End Type
 '--- Game Build Settings ---
 Const MaxRenderDistance = 16
 Const WaterLevel = 63
-Const FastChunkLoading = 0
+Const SuperFastChunkLoading = 0
+Const FastChunkLoading = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
@@ -44,7 +45,7 @@ RenderDistance = MaxRenderDistance
 '-----------------------------
 
 '--- World Generation Settings ---
-Const NoiseSmoothness = 256
+Const BiomeSizeFactor = 256
 '---------------------------------
 
 '--- GL ---
@@ -443,6 +444,10 @@ Function getHash~%% (T$) Static
 End Function
 Function getBlockID~% (BlockName$) Static
     Static Hash~%%, Search~%
+    If Len(BlockName$) = 0 Then
+        getBlockID~% = 0
+        Exit Function
+    End If
     Hash~%% = getHash~%%(BlockName$)
     If BlockHashTable_Length(Hash~%%) = 1 Then getBlockID~% = CVI(BlockHashTable_Code(Hash~%%)): Exit Function
     Search~% = ListStringSearch(BlockHashTable_List(Hash~%%), BlockName$)
@@ -463,7 +468,7 @@ Function getBiome! (X As Long, Z As Long) Static
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getBiome! = fractal2(PX, PZ, 256, 0, 0) * TotalBiomes
+    getBiome! = fractal2(PX, PZ, BiomeSizeFactor, 0, 0) * TotalBiomes
 End Function
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")

@@ -49,8 +49,9 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
     Static As Integer Height
-    Static As _Unsigned _Byte Block, Block_Water, BiomeSelector
+    Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
+    Static As String * 324 HeightMap
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
     End If
@@ -70,6 +71,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
             Biome = getBiome!(PX + X, PZ + Z)
             BiomeSelector = Int(Biome)
             Height = getHeight%(PX + X, PZ + Z, Biome)
+            Asc(HeightMap, X * 18 + Z + 1) = Height
             For Y = 0 To 257
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)
@@ -77,20 +79,44 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
                     Case Height: Block = BiomeBlocks(0, BiomeSelector)
                     Case Else: Block = 0
                 End Select
-                If Height <= Y And Y <= WaterLevel Then Block = Block_Water
+                If Height <= Y And Y < WaterLevel Then Block = Block_Water
                 ChunksData(X, Y, Z, ChunkID).Block = Block
                 ChunksData(X, Y, Z, ChunkID).Light = 15
                 TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block)
             Next Y
     Next Z, X
+    'For X = 0 To 17
+    '    For Z = 0 To 17
+    '        Biome = getBiome!(PX + X, PZ + Z)
+    '        Height = Asc(HeightMap, X * 18 + Z + 1)
+    '        If Height <= WaterLevel Then _Continue
+    '        If InRange(0.75, fractal2(PX + X, PZ + Z, 16, 0, 5), 0.75) = 0 And InRange(0.75, fractal2(PX + X, PZ + Z, 32, 0, 6), 0.75) = 0 Then _Continue
+    '        TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
+    '        If TreeLog = 0 Then _Continue
+    '        TreeLeaves = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_leaves"))
+    '        TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
+    '        TreeHeight = fractal2(PX + X, PZ + Z, 64, 0, 7) * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
+    '        S = Height + 1
+    '        E = Height + TreeHeight
+    '        For Y = S To E
+    '            ChunksData(X, Y, Z, ChunkID).Block = TreeLog
+    '        Next Y
+    '        For Y = E - 1 to E
+    '            For XX = X - 1 To X + 1
+    '                For ZZ = Z - 1 To Z + 1
+    '                    If XX < 0 Or XX > 17 Or ZZ < 0 Or ZZ > 17 Then _Continue
+    '                    If ChunksData(XX, Y, ZZ, ChunkID).Block = 0 Then ChunksData(XX, Y, ZZ, ChunkID).Block = TreeLeaves
+    '            Next ZZ, XX
+    '        Next Y
+    'Next Z, X
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
-    If FastChunkLoading = 0 Then ' Lighting
+    If SuperFastChunkLoading = 0 Then ' Lighting
         For X = 0 To 17
             For Z = 0 To 17
                 __TOGGLE` = 0
                 For Y = 257 To 0 Step -1
                     __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
-                    ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17))
+                    ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17)) Or (12 And FastChunkLoading)
         Next Y, Z, X
     End If
     Chunks(ChunkID).DataLoaded = 253
