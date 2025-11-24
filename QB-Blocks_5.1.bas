@@ -188,36 +188,15 @@ Do
             Color White, _RGB32(0, 127)
         End If
     End If
-    While _MouseInput
-        Select Case GL_CURRENT_STATE
-            Case CONST_GL_STATE_PAUSE_MENU
-                _MouseShow
-            Case CONST_GL_STATE_GAMEPLAY
-                _MouseHide
-                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 360)
-                Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
-                _MouseMove _Width / 2, _Height / 2
-        End Select
-    Wend
-    Select Case GL_CURRENT_STATE
-        Case CONST_GL_STATE_STARTUP_MENU
-        Case CONST_GL_STATE_PAUSE_MENU
-            Select Case _KeyHit
-                Case 27: GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
-            End Select
-        Case CONST_GL_STATE_GAMEPLAY
-    End Select
 
-    Select Case LFPSCount And 1
-        Case 0: If Len(ChunkDataLoadQueue) Then
-                __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
-                LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
-            End If
-        Case 1: If Len(RenderDataLoadQueue) Then
-                __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
-                RenderChunk CVL(__Chunk$)
-            End If
-    End Select
+    If Len(ChunkDataLoadQueue) Then
+        __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
+        LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
+    End If
+    If Len(RenderDataLoadQueue) Then
+        __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
+        RenderChunk CVL(__Chunk$)
+    End If
 
     If _Exit Then Exit Do
     LFPSCount = LFPSCount + 1
@@ -265,6 +244,11 @@ Sub _GL Static
     Static As Single TransparentTranslateY
     On Error GoTo GLErrHandler
     Select Case GL_CURRENT_STATE
+        Case CONST_GL_STATE_PAUSE_MENU
+            _MouseShow
+            Select Case _KeyHit
+                Case 27: GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
+            End Select
         Case CONST_GL_STATE_GAMEPLAY
             SimulateCamera
             '--- Movement ---
@@ -287,6 +271,12 @@ Sub _GL Static
             PlayerInChunk.X = Int(Camera.Position.X - _SHL(PlayerChunkX, 4)): PlayerInChunk.Y = Int(Camera.Position.Y - _SHL(PlayerChunkY, 8)): PlayerInChunk.Z = Int(Camera.Position.Z - _SHL(PlayerChunkZ, 4))
             If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then RebuildChunkDataLoadQueue
             '-------------------------
+            While _MouseInput
+                _MouseHide
+                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 360)
+                Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
+                _MouseMove _Width / 2, _Height / 2
+            Wend
     End Select
     Select Case GL_CURRENT_STATE
         Case 0
@@ -397,8 +387,8 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
-
-                PrintString 0, 80, "Terrain", White
+                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 2)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), White
+                PrintString 0, 96, "Terrain", White
                 Biome! = getBiome(Player.Position.X, Player.Position.Z)
                 Biome1~%% = Int(Biome!)
                 Biome2~%% = Biome1~%% + 1
@@ -406,10 +396,10 @@ Sub _GL Static
                 GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
                 ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
                 BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
-                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
-                PrintString 16, 112, "Ground Height Bias:" + Str$(GroundHeightBias!), White
-                PrintString 16, 128, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
-                PrintString 16, 144, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
+                PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
+                PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), White
+                PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
+                PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display

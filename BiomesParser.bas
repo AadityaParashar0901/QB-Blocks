@@ -40,7 +40,6 @@ Dim Shared As _Unsigned _Byte BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
 Dim Shared As _Unsigned Integer BiomeHeightBias(0 To TotalBiomes)
 Dim Shared As _Unsigned Integer BiomeExcitedHeightBias(0 To TotalBiomes)
 Dim Shared As _Unsigned Integer BiomeSmoothness(0 To TotalBiomes)
-Write_Log "Biome Properties:"
 For I = 0 To TotalBiomes - 1
     BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I + 1, "surface_block"))
     BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I + 1, "under_surface_block"))
@@ -48,7 +47,6 @@ For I = 0 To TotalBiomes - 1
     BiomeHeightBias(I) = Val(ListMapGet(BiomesList, I + 1, "height_bias"))
     BiomeExcitedHeightBias(I) = Val(ListMapGet(BiomesList, I + 1, "excited_height_bias"))
     BiomeSmoothness(I) = Val(ListMapGet(BiomesList, I + 1, "biome_smoothness"))
-    Write_Log ListMapGet(BiomesList, I + 1, "name") + ": " + Str$(BiomeHeightBias(I)) + Str$(BiomeExcitedHeightBias(I)) + Str$(BiomeSmoothness(I))
 Next I
 BiomeHeightBias(I) = BiomeHeightBias(I - 1)
 BiomeExcitedHeightBias(I) = BiomeExcitedHeightBias(I - 1)

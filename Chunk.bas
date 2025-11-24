@@ -40,7 +40,7 @@ Sub RebuildChunkDataLoadQueue Static
             End Select
         Next I
     Next R
-    File_Log "Built ChunkLoadQueue:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3))
+    'File_Log "Built ChunkLoadQueue:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3))
 End Sub
 Function getChunkID~& (X As Long, Z As Long) Static
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
@@ -71,6 +71,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
             Biome = getBiome!(PX + X, PZ + Z)
             BiomeSelector = Int(Biome)
             Height = getHeight(PX + X, PZ + Z, Biome)
+            If Height > 256 Then Write_Log "Height Error"
             dHeight = Height - Int(Height)
             Height = Int(Height)
             Asc(HeightMap, X * 18 + Z + 1) = Int(Height)
@@ -122,7 +123,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
         Next Y, Z, X
     End If
     Chunks(ChunkID).DataLoaded = 253
-    File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
+    'File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
     RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
 End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static
@@ -178,6 +179,6 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static
         VertexID = VertexID + 1
     Next Mode
     TotalChunksLoaded = TotalChunksLoaded + 1
-    File_Log "Render Data Loaded(" + _Trim$(Str$(Chunks(ChunkID).X)) + "," + _Trim$(Str$(Chunks(ChunkID).Z)) + "):" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
+    'File_Log "Render Data Loaded(" + _Trim$(Str$(Chunks(ChunkID).X)) + "," + _Trim$(Str$(Chunks(ChunkID).Z)) + "):" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
     Chunks(ChunkID).DataLoaded = 255
 End Sub
