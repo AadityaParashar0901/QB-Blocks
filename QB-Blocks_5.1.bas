@@ -168,7 +168,7 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
-_FPS 60
+_FPS 240
 
 RebuildChunkDataLoadQueue
 Do
@@ -341,7 +341,7 @@ Sub _GL Static
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).VerticesCount, 2)
             Next I
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
-            _glTranslatef 0, -0.1 - Sin(TransparentTranslateY) * 0.1, 0
+            _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0
             For I = 1 To MaxChunks
                 tmpChunksVisible = tmpChunksVisible + IIF((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
@@ -355,7 +355,7 @@ Sub _GL Static
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
             Next I
-            _glTranslatef 0, -0.1 + Sin(TransparentTranslateY) * 0.1, 0
+            _glTranslatef 0, -0.15 + Sin(TransparentTranslateY) * 0.1, 0
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
             _glDisableClientState _GL_COLOR_ARRAY
