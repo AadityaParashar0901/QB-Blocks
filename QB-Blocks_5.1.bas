@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 8
 Const WaterLevel = 63
 Const SuperFastChunkLoading = 0
 Const FastChunkLoading = -1
@@ -40,13 +40,17 @@ Const ChunkDataSize = 196608
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
 Fov = 90
-Fog = 1
+Fog = 0
 RenderDistance = MaxRenderDistance
 '-----------------------------
 
 '--- World Generation Settings ---
 Const BiomeSizeFactor = 256
 '---------------------------------
+
+'--- Error Handlers ---
+Dim Shared As _Unsigned Integer LastError
+'----------------------
 
 '--- GL ---
 Dim Shared As _Unsigned _Byte GL_CURRENT_STATE, GL_EXTRA_STATE
@@ -137,12 +141,6 @@ While _Resize: Wend
 
 '--- Biomes ---
 '$Include:'BiomesParser.bas'
-Dim Shared As _Unsigned _Byte BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
-For I = 0 To TotalBiomes - 1
-    BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I + 1, "surface_block"))
-    BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I + 1, "under_surface_block"))
-    BiomeBlocks(2, I) = getBlockID(ListMapGet(BiomesList, I + 1, "underground_block"))
-Next I
 '--------------
 
 '--- Noise ---
@@ -399,8 +397,19 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
+
                 PrintString 0, 80, "Terrain", White
-                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, 1 + Int(getBiome(Player.Position.X, Player.Position.Z)), "name"), White
+                Biome! = getBiome(Player.Position.X, Player.Position.Z)
+                Biome1~%% = Int(Biome!)
+                Biome2~%% = Biome1~%% + 1
+                dBiome! = Biome! - Int(Biome!)
+                GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
+                ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
+                BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
+                PrintString 16, 96, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
+                PrintString 16, 112, "Ground Height Bias:" + Str$(GroundHeightBias!), White
+                PrintString 16, 128, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
+                PrintString 16, 144, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
@@ -457,18 +466,30 @@ End Function
 Function getHeight% (X As Long, Z As Long, Biome As Single) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
+    Static Biome1~%%, Biome2~%%, dBiome!
+    Static GroundHeightBias!, ExcitedHeightBias!, BiomeSmoothness!, GroundHeight!, ExcitedHeight!
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * 128 * (Biome + 1) / TotalBiomes
-    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) * (Biome + 1) / TotalBiomes
-    getHeight% = GroundHeight! + ExcitedHeight! * ExcitedHeight! * 128
+    Biome1~%% = Int(Biome)
+    Biome2~%% = Biome1~%% + 1
+    dBiome! = Biome - Int(Biome)
+    GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
+    ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
+    BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
+    'BiomeSmoothness! is not currently in use
+    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
+    ExcitedHeight! = getExcitedHeight!(PX, PZ, 64)
+    getHeight% = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
+End Function
+Function getExcitedHeight! (PX, PZ, BiomeSmoothness!) Static
+    getExcitedHeight! = fractal2(PX, PZ, BiomeSmoothness!, 3, 1)
 End Function
 Function getBiome! (X As Long, Z As Long) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getBiome! = fractal2(PX, PZ, BiomeSizeFactor, 0, 0) * TotalBiomes
+    getBiome! = fractal2(PX, PZ, BiomeSizeFactor, 0, 2) * TotalBiomes
 End Function
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
@@ -524,3 +545,10 @@ Function RemoveDoubleQuotes$ (__S$)
         RemoveDoubleQuotes$ = __S$
     End If
 End Function
+Sub CriticalError
+    Shell "start notepad log.txt"
+    GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
+    While GL_CURRENT_STATE: Wend
+    If LogFile Then Close #100 'Close Log File
+    System
+End Sub

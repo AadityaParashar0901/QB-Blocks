@@ -17,7 +17,7 @@ For I = 1 To ListStringLength(FileContents)
                 Case "name": I = I + 2
                     Biome$ = MapNew$
                     MapSetKey Biome$, "name", RemoveDoubleQuotes$(ListStringGet(FileContents, I))
-                Case "surface_block", "under_surface_block", "underground_block", "tree_log", "tree_leaves": I = I + 2
+                Case "surface_block", "under_surface_block", "underground_block", "height_bias", "excited_height_bias", "biome_smoothness", "tree_log", "tree_leaves": I = I + 2
                     MapSetKey Biome$, CurrentListElement$, RemoveDoubleQuotes$(ListStringGet(FileContents, I))
                 Case "tree_height": I = I + 2
                     MapSetKey Biome$, "tree_height_lower_limit", ListStringGet(FileContents, I)
@@ -36,3 +36,20 @@ Write_Log "Biomes: " + ListMapPrint(BiomesList)
 Dim Shared TotalBiomes As _Unsigned Integer
 TotalBiomes = ListMapLength(BiomesList)
 Write_Log "Total Biomes = " + Hex$(TotalBiomes)
+Dim Shared As _Unsigned _Byte BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)
+Dim Shared As _Unsigned Integer BiomeHeightBias(0 To TotalBiomes)
+Dim Shared As _Unsigned Integer BiomeExcitedHeightBias(0 To TotalBiomes)
+Dim Shared As _Unsigned Integer BiomeSmoothness(0 To TotalBiomes)
+Write_Log "Biome Properties:"
+For I = 0 To TotalBiomes - 1
+    BiomeBlocks(0, I) = getBlockID(ListMapGet(BiomesList, I + 1, "surface_block"))
+    BiomeBlocks(1, I) = getBlockID(ListMapGet(BiomesList, I + 1, "under_surface_block"))
+    BiomeBlocks(2, I) = getBlockID(ListMapGet(BiomesList, I + 1, "underground_block"))
+    BiomeHeightBias(I) = Val(ListMapGet(BiomesList, I + 1, "height_bias"))
+    BiomeExcitedHeightBias(I) = Val(ListMapGet(BiomesList, I + 1, "excited_height_bias"))
+    BiomeSmoothness(I) = Val(ListMapGet(BiomesList, I + 1, "biome_smoothness"))
+    Write_Log ListMapGet(BiomesList, I + 1, "name") + ": " + Str$(BiomeHeightBias(I)) + Str$(BiomeExcitedHeightBias(I)) + Str$(BiomeSmoothness(I))
+Next I
+BiomeHeightBias(I) = BiomeHeightBias(I - 1)
+BiomeExcitedHeightBias(I) = BiomeExcitedHeightBias(I - 1)
+BiomeSmoothness(I) = BiomeSmoothness(I - 1)

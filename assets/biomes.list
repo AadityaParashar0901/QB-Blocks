@@ -1,29 +1,65 @@
 # BIOMES #
 biomes {
+# DEEP OCEAN #
 	name = "deep_ocean",
 	surface_block = "cobblestone",
 	under_surface_block = "mossy_cobblestone",
-	underground_block = "deepslate";
+	underground_block = "deepslate",
+	height_bias = 24,
+	excited_height_bias = 4,
+	biome_smoothness = 64;
+
+# OCEAN #
 	name = "ocean",
 	surface_block = "dirt",
 	under_surface_block = "stone",
-	underground_block = "stone";
-	name = "desert",
+	underground_block = "stone",
+	height_bias = 48,
+	excited_height_bias = 16,
+	biome_smoothness = 64;
+
+# SEA SHORE #
+	name = "sea_shore",
 	surface_block = "sand",
 	under_surface_block = "sand",
-	underground_block = "sandstone";
+	underground_block = "sandstone",
+	height_bias = 128,
+	excited_height_bias = 16,
+	biome_smoothness = 64;
+
+# PLAINS #
 	name = "plains",
 	surface_block = "grass",
 	under_surface_block = "dirt",
 	underground_block = "stone",
 	tree_log = "oak_log",
 	tree_leaves = "oak_leaves",
-	tree_height = 3 ~ 5;
-	name = "snow",
+	tree_height = 3 ~ 5,
+	height_bias = 144,
+	excited_height_bias = 32,
+	biome_smoothness = 256;
+
+# HIGHER PLAINS #
+	name = "higher_plains",
+	surface_block = "grass",
+	under_surface_block = "dirt",
+	underground_block = "stone",
+	tree_log = "oak_log",
+	tree_leaves = "oak_leaves",
+	tree_height = 4 ~ 6,
+	height_bias = 160,
+	excited_height_bias = 64,
+	biome_smoothness = 128;
+
+# SNOWY MOUNTAINS #
+	name = "snowy_mountains",
 	surface_block = "snow",
 	under_surface_block = "dirt",
 	underground_block = "stone",
 	tree_log = "spruce_log",
 	tree_leaves = "spruce_leaves",
-	tree_height = 5 ~ 7;
+	tree_height = 5 ~ 7,
+	height_bias = 192,
+	excited_height_bias = 96,
+	biome_smoothness = 64;
 }
