@@ -208,7 +208,7 @@ Do
         Case CONST_GL_STATE_GAMEPLAY
     End Select
 
-    Select Case LFPSCount And 3
+    Select Case LFPSCount And 1
         Case 0: If Len(ChunkDataLoadQueue) Then
                 __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
                 LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
@@ -478,11 +478,8 @@ Function getHeight! (X As Long, Z As Long, Biome As Single) Static
     'BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
     'BiomeSmoothness! is not currently in use
     GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
-    ExcitedHeight! = getExcitedHeight!(PX, PZ, 64)
+    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) ' BiomeSmoothness!
     getHeight! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
-End Function
-Function getExcitedHeight! (PX, PZ, BiomeSmoothness!) Static
-    getExcitedHeight! = fractal2(PX, PZ, BiomeSmoothness!, 3, 1)
 End Function
 Function getBiome! (X As Long, Z As Long) Static
     Static As Integer SX, SZ
@@ -545,10 +542,11 @@ Function RemoveDoubleQuotes$ (__S$)
         RemoveDoubleQuotes$ = __S$
     End If
 End Function
-Sub CriticalError
-    Shell "start notepad log.txt"
+Sub CriticalError (__E$)
+    Write_Log __E$
     GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
     While GL_CURRENT_STATE: Wend
     If LogFile Then Close #100 'Close Log File
+    Shell "start notepad log.txt"
     System
 End Sub

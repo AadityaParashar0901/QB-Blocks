@@ -1,26 +1,22 @@
+$Checking:Off
 Function perm2! (X As Long, Y As Long, M As _Unsigned _Byte) Static
-    Dim As Long h
-    $Checking:Off
+    Static As Long h
     h = X * 73856093 Xor Y * 19349663 Xor M + Seed * 193
     h = (h Xor _SHR(h, 13)) * 60493
     h = h Xor _SHR(h, 16)
     perm2! = (h And 2147483647) / 2147483647
-    $Checking:On
 End Function
 Function perm3! (X As Long, Y As Long, Z As Long, M As _Unsigned _Byte) Static
-    Dim As _Unsigned Long h
-    $Checking:Off
+    Static As _Unsigned Long h
     h = X * 73856093 Xor Y * 19349663 Xor Z * 83492791 Xor M + Seed
     h = (h Xor _SHR(h, 13)) * 60493
     h = h Xor _SHR(h, 16)
     perm3! = (h And 2147483647) / 2147483647
-    $Checking:On
 End Function
 Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte) Static
-    Dim As Double amplitude, total, maxAmplitude, scale
-    Dim As Single tX, tY
-    Dim As _Byte i
-    $Checking:Off
+    Static As Double amplitude, total, maxAmplitude, scale
+    Static As Single tX, tY
+    Static As _Byte i
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -42,14 +38,12 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
         amplitude = amplitude / 2
         scale = scale / 2
     Next i
-    $Checking:On
     fractal2! = total / maxAmplitude
 End Function
 Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte) Static
-    Dim As Double amplitude, total, maxAmplitude, scale
-    Dim As Single tX, tY, tZ
-    Dim As _Byte i
-    $Checking:Off
+    Static As Double amplitude, total, maxAmplitude, scale
+    Static As Single tX, tY, tZ
+    Static As _Byte i
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -83,6 +77,6 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
         amplitude = amplitude / 2
         scale = scale / 2
     Next i
-    $Checking:On
     fractal3! = total / maxAmplitude
 End Function
+$Checking:On
