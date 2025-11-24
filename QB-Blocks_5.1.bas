@@ -19,9 +19,9 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 8
-Const WaterLevel = 63
-Const SuperFastChunkLoading = 0
+Const MaxRenderDistance = 4
+Const WaterLevel = 64
+Const SuperFastChunkLoading = -1
 Const FastChunkLoading = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
@@ -463,7 +463,7 @@ Function getBlockID~% (BlockName$) Static
     If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
-Function getHeight% (X As Long, Z As Long, Biome As Single) Static
+Function getHeight! (X As Long, Z As Long, Biome As Single) Static
     Static As Integer SX, SZ
     Static As Long PX, PZ
     Static Biome1~%%, Biome2~%%, dBiome!
@@ -475,11 +475,11 @@ Function getHeight% (X As Long, Z As Long, Biome As Single) Static
     dBiome! = Biome - Int(Biome)
     GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
     ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
-    BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
+    'BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
     'BiomeSmoothness! is not currently in use
     GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
     ExcitedHeight! = getExcitedHeight!(PX, PZ, 64)
-    getHeight% = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
+    getHeight! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
 End Function
 Function getExcitedHeight! (PX, PZ, BiomeSmoothness!) Static
     getExcitedHeight! = fractal2(PX, PZ, BiomeSmoothness!, 3, 1)

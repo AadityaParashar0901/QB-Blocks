@@ -30,12 +30,12 @@ blocks {
 	name = "dirt", textures = 3;
 	name = "stone", textures = 4;
 	name = "oak_log", textures = [5, 5, 6, 6, 5, 5];
-	name = "oak_leaves", textures = 7;
+	name = "oak_leaves", textures = 7, flora;
 	name = "oak_planks", textures = 8;
 	name = "snow", textures = [10, 10, 9, 3, 10, 10];
 	name = "sand", textures = 11;
 	name = "spruce_log", textures = [12, 12, 13, 13, 12, 12];
-	name = "spruce_leaves", textures = 14;
+	name = "spruce_leaves", textures = 14, flora;
 	name = "spruce_planks", textures = 15;
 	name = "stone_bricks", textures = 16;
 	name = "sandstone", textures = [17, 17, 19, 18, 17, 17];

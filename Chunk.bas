@@ -48,7 +48,7 @@ End Function
 Sub LoadChunk (CX As Long, CZ As Long) Static
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
-    Static As Integer Height
+    Static As Single Height, dHeight
     Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
     Static As String * 324 HeightMap
@@ -70,16 +70,18 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
         For Z = 0 To 17
             Biome = getBiome!(PX + X, PZ + Z)
             BiomeSelector = Int(Biome)
-            Height = getHeight%(PX + X, PZ + Z, Biome)
-            Asc(HeightMap, X * 18 + Z + 1) = Height
+            Height = getHeight(PX + X, PZ + Z, Biome)
+            dHeight = Height - Int(Height)
+            Height = Int(Height)
+            Asc(HeightMap, X * 18 + Z + 1) = Int(Height)
             For Y = 0 To 257
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)
                     Case Height - 2 To Height - 1: Block = BiomeBlocks(1, BiomeSelector)
-                    Case Height: Block = BiomeBlocks(0, BiomeSelector)
+                    Case Height: If Height = WaterLevel And dHeight < 0.5 Then Block = Block_Water Else Block = BiomeBlocks(0, BiomeSelector)
                     Case Else: Block = 0
                 End Select
-                If Height <= Y And Y < WaterLevel Then Block = Block_Water
+                If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
                 ChunksData(X, Y, Z, ChunkID).Block = Block
                 ChunksData(X, Y, Z, ChunkID).Light = 15
                 TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block)
