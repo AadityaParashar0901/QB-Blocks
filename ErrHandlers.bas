@@ -1,6 +1,6 @@
 ErrHandler:
 F$ = _InclErrorFile$
-LastError = Err
+LastError = Err ' Store the last error, was needed to debug
 If Len(F$) Then
     Write_Log "[" + _Trim$(Str$(LFPSCount)) + "][Error" + Str$(LastError) + ":" + _ErrorMessage$ + " on line" + Str$(_ErrorLine) + "->" + F$ + Str$(_InclErrorLine) + "]"
 Else

@@ -10,10 +10,10 @@ Open "assets\assets.list" For Binary As #1
 FileContents = String$(LOF(1), 0)
 Get #1, , FileContents
 Close #1
-FileContents = Tokenizer$(FileContents)
+FileContents = Tokenizer$(FileContents) ' Tokenize the File into a list
 Write_Log "Assets: " + ListStringPrint(FileContents)
 CurrentMode = 0
-For I = 1 To ListStringLength(FileContents)
+For I = 1 To ListStringLength(FileContents) ' Parse it
     CurrentListElement$ = ListStringGet(FileContents, I)
     Select Case CurrentMode
         Case 0: Select Case CurrentListElement$
@@ -54,7 +54,7 @@ For I = 1 To ListStringLength(FileContents)
                 Case ";": TextureMode = 0
                 Case "}": If TextureMode = 0 Then CurrentMode = 0
                 Case ","
-                Case "animate": I = I + 2: Textures(CurrentTextureID).AnimationFrames = Val(ListStringGet(FileContents, I))
+                Case "animate": I = I + 2: Textures(CurrentTextureID).AnimationFrames = Val(ListStringGet(FileContents, I)) ' not being used currently
                     Y~% = Y~% + Textures(CurrentTextureID).AnimationFrames - 1
                 Case Else: Write_Log "Loading Texture(" + ByteToHex$(CurrentTextureID) + "): " + CurrentListElement$
                     If TextureMode Then _Continue
@@ -108,7 +108,7 @@ For I = 1 To ListStringLength(FileContents)
 Next I
 TotalTextures = UBound(Textures): Write_Log "Total Textures:" + Str$(TotalTextures)
 TotalBlocks = UBound(Blocks): Write_Log "Total Blocks:" + Str$(TotalBlocks)
-'    Form Hash Table
+'    Build Hash Table
 For I = 1 To TotalBlocks
     Hash~%% = getHash~%%(Blocks(I).Name)
     If BlockHashTable_Length(Hash~%%) = 0 Then BlockHashTable_List(Hash~%%) = ListStringNew$
@@ -131,4 +131,4 @@ For I = 1 To TotalTextures
 Next I
 
 GL_CURRENT_STATE = CONST_GL_STATE_CREATE_TEXTURES
-While GL_CURRENT_STATE: Wend
+While GL_CURRENT_STATE: Wend ' Wait for GL Thread to Convert the Texture Atlas to a GL Texture

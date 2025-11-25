@@ -1,4 +1,4 @@
-Sub RebuildChunkDataLoadQueue Static
+Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
     Static As Vec3_Long tmpChunksStart, tmpChunksEnd
     Static As Long I, X, Z
     Static ChunkID As _Unsigned Long
@@ -42,16 +42,16 @@ Sub RebuildChunkDataLoadQueue Static
     Next R
     'File_Log "Built ChunkLoadQueue:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3))
 End Sub
-Function getChunkID~& (X As Long, Z As Long) Static
+Function getChunkID~& (X As Long, Z As Long) Static ' Hash Table approach, faster & enables resuming chunk loading
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
-Sub LoadChunk (CX As Long, CZ As Long) Static
+Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
     Static As Single Height, dHeight
     Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
-    Static As String * 324 HeightMap
+    Static As String * 324 HeightMap ' Store the heightmap for tree generation
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
     End If
@@ -116,20 +116,29 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
     '        Next Y
     'Next Z, X
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
-    If SuperFastChunkLoading = 0 Then ' Lighting
+    If SkipLighting = 0 Then ' Lighting
         For X = 0 To 17
             For Z = 0 To 17
                 __TOGGLE` = 0
                 For Y = 257 To 0 Step -1
                     __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
-                    ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17)) Or (12 And FastChunkLoading)
+                    ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17)) Or (12 And MinimalLighting <> 0)
         Next Y, Z, X
+    End If
+    If SkipLighting = 0 And MinimalLighting = 0 Then ' need to implement fast Flood Fill Algorithm
+        For I = 15 To 1 Step -1
+            For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
+                        If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
+                        If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
+                            ChunksData(X, Y, Z, ChunkID).Light = I - 1
+                        End If
+        Next Y, Z, X, I
     End If
     Chunks(ChunkID).DataLoaded = 253
     'File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
     RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
 End Sub
-Sub RenderChunk (ChunkID As _Unsigned Long) Static
+Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As Long X, Y, Z
     Dim As _Unsigned Long VertexID
     Static As _Unsigned Long J, TextureID, TextureOffset

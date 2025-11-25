@@ -6,7 +6,7 @@ $Resize:On
 _Console On
 
 Const LogFile = 1
-If LogFile Then Open "log.txt" For Output As #100 'Open Log File
+If LogFile Then Open "log.txt" For Output Lock Write As #100 'Open Log File
 
 '--- Type ---
 '$Include:'Vectors.bi'
@@ -19,12 +19,11 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 64
+Const MaxRenderDistance = 32
 Const WaterLevel = 64
-Const SuperFastChunkLoading = -1
-Const FastChunkLoading = -1
-Const GL_Chunk_Rendering = -1 ' Loads 2401 Chunks in ~ 2 minutes with less GL FPS
-'                               Else ~ 7 minutes with less BOTH FPS (on my laptop)
+Const MinimalLighting = -1 ' Fast Lighting
+Const SkipLighting = -1 ' Disables Lighting
+Const GL_Chunk_Rendering = -1 ' Moves Chunk Rendering to GL Thread, 3 times Faster
 Const UseDefaultFont = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
@@ -32,6 +31,7 @@ Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
 Const MaxChunks = MaxRenderDistanceX * MaxRenderDistanceZ
 Write_Log "Max Chunks: " + _Trim$(Str$(MaxChunks))
 Const ChunkDataSize = 4096 ' Since 4096 is the maximum stable count, else 196608
+'                            Also, 4096 supports more render distance (upto 96!)
 Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 '    Chunk Size: 16 x 256 x 16
 '    in the best case, where all the faces of a chunk are visible: 8 * 128 * 8 blocks
@@ -39,6 +39,7 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 '    Approx Memory Usage per Chunk (of RenderData ONLY)
 '        Vertices: 2 * 3, TextureCoords: 4 * 2, Colors: 1 * 3 => 17
 '        17 * 192 -> 3264 KiB = 3.1875 MiB
+'        Updated: 17 * 4 -> 68 KiB
 
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
@@ -119,7 +120,7 @@ Type Camera
 End Type
 Dim Shared As Camera Camera
 Dim Shared As _Unsigned _Byte CinematicCamera
-Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk
+Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk ' used to calculate the chunk in which the player is
 Dim Shared As Vec3_Byte PlayerInChunk
 
 '    Sun, Moon -> not implemented yet
@@ -277,8 +278,12 @@ Sub _GL Static
             '----------------
             '--- Chunk Coordinates ---
             oldPlayerChunk = PlayerChunk
-            PlayerChunk.X = _SHR(Camera.Position.X, 4): PlayerChunk.Y = _SHR(Camera.Position.Y, 8): PlayerChunk.Z = _SHR(Camera.Position.Z, 4)
-            PlayerInChunk.X = Int(Camera.Position.X - _SHL(PlayerChunkX, 4)): PlayerInChunk.Y = Int(Camera.Position.Y - _SHL(PlayerChunkY, 8)): PlayerInChunk.Z = Int(Camera.Position.Z - _SHL(PlayerChunkZ, 4))
+            PlayerChunk.X = _SHR(Camera.Position.X, 4)
+            PlayerChunk.Y = _SHR(Camera.Position.Y, 8)
+            PlayerChunk.Z = _SHR(Camera.Position.Z, 4)
+            PlayerInChunk.X = Int(Camera.Position.X - _SHL(PlayerChunkX, 4))
+            PlayerInChunk.Y = Int(Camera.Position.Y - _SHL(PlayerChunkY, 8))
+            PlayerInChunk.Z = Int(Camera.Position.Z - _SHL(PlayerChunkZ, 4))
             If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then RebuildChunkDataLoadQueue
             '-------------------------
             While _MouseInput
@@ -305,10 +310,10 @@ Sub _GL Static
             _glEnable _GL_LINE_SMOOTH
             _glEnable _GL_POLYGON_SMOOTH
             _glEnable _GL_POINT_SMOOTH
-            _glDisable _GL_MULTISAMPLE
+            _glDisable _GL_MULTISAMPLE ' no mixing of texture colors when a triangle is far
 
             _glEnable _GL_DEPTH_TEST
-            _glEnable _GL_CULL_FACE
+            _glEnable _GL_CULL_FACE ' for performance
             _glClearColor SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1
             _glClear _GL_DEPTH_BUFFER_BIT Or _GL_COLOR_BUFFER_BIT
             '_glTranslatef 0, 0, -0.25
@@ -325,10 +330,10 @@ Sub _GL Static
             If Fog Then
                 _glEnable _GL_FOG
                 _glFogi _GL_FOG_MODE, _GL_LINEAR
-                _glFogf _GL_FOG_END, 256
+                _glFogf _GL_FOG_END, Max(Y, 256)
                 _glFogf _GL_FOG_START, 16
                 _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
-                _glFogf _GL_FOG_DENSITY, 10 - Y / 100
+                _glFogf _GL_FOG_DENSITY, 10
             End If
 
             _glEnable _GL_TEXTURE_2D
@@ -338,7 +343,7 @@ Sub _GL Static
             _glEnableClientState _GL_COLOR_ARRAY
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
-            For I = 1 To MaxChunks
+            For I = 1 To MaxChunks ' Render Chunks which are loaded completely
                 If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize
                 _glPushMatrix
@@ -351,8 +356,8 @@ Sub _GL Static
                 tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).VerticesCount, 2)
             Next I
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
-            _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0
-            For I = 1 To MaxChunks
+            _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0 ' Translate for water animation
+            For I = 1 To MaxChunks ' Render Transparent Quads from Chunks
                 tmpChunksVisible = tmpChunksVisible + IIF((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
@@ -424,8 +429,8 @@ Function glVec4%& (X!, Y!, Z!, W!)
     VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
     glVec4%& = _Offset(VEC4())
 End Function
-'$Include:'Chunk.bas'
-Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkID As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static
+'$Include:'Chunk.bas' 'Contains Code to load ChunkData and Render Chunks
+Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkID As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static ' used to calculate block lighting
     'Adapted from QB-Blocks_4
     $Checking:Off
     Dim As _Byte dX, dY, dZ
@@ -442,7 +447,7 @@ Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex 
     $Checking:On
     AmbientOcclusion = 255 - 15 * total
 End Function
-Function getHash~%% (T$) Static
+Function getHash~%% (T$) Static ' hash function for the blocks hash table
     Static As _Unsigned Long I
     B~%% = Asc(T$)
     For I = 2 To Len(T$) - 1
@@ -455,7 +460,7 @@ Function getHash~%% (T$) Static
     Next I
     getHash~%% = B~%% + Asc(T$, I)
 End Function
-Function getBlockID~% (BlockName$) Static
+Function getBlockID~% (BlockName$) Static ' returns the block id from the hash table
     Static Hash~%%, Search~%
     If Len(BlockName$) = 0 Then
         getBlockID~% = 0
@@ -467,7 +472,7 @@ Function getBlockID~% (BlockName$) Static
     If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
-Function getHeight! (X As Long, Z As Long, Biome As Single) Static
+Function getHeight! (X As Long, Z As Long, Biome As Single) Static ' returns the height of a position, used by chunk loader, has bugs
     Static As Integer SX, SZ
     Static As Long PX, PZ
     Static Biome1~%%, Biome2~%%, dBiome!
@@ -478,17 +483,17 @@ Function getHeight! (X As Long, Z As Long, Biome As Single) Static
     Biome1~%% = Int(Biome)
     Biome2~%% = Biome1~%% + 1
     dBiome! = Biome - Int(Biome)
-    GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
+    GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!) ' interpolate between changing biomes for smooth values
     ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
     'BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
     'BiomeSmoothness! is not currently in use
     GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
     ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) ' BiomeSmoothness!
     gH! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
-    If gH! > 256 Then getHeight! = old_gH! Else getHeight! = gH!
+    If gH! > 256 Then getHeight! = old_gH! Else getHeight! = gH! ' for bugs
     old_gH! = gH!
 End Function
-Function getBiome! (X As Long, Z As Long) Static
+Function getBiome! (X As Long, Z As Long) Static ' used to get the biome
     Static As Integer SX, SZ
     Static As Long PX, PZ
     SX = _SHR(Seed, 16): SZ = Seed And 65535
@@ -502,6 +507,7 @@ Function LoadAsset& (FILE$)
     Next I
     Write_Log "Cannot Load: " + FILE$
 End Function
+'--- Logging ---
 Sub Write_Log (Log$)
     If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
     _Echo T$
@@ -511,6 +517,15 @@ Sub File_Log (Log$)
     If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
     If LogFile Then Print #100, T$
 End Sub
+Sub CriticalError (__E$)
+    Write_Log __E$
+    GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
+    While GL_CURRENT_STATE: Wend
+    If LogFile Then Close #100 'Close Log File
+    Shell "start notepad log.txt"
+    System
+End Sub
+'---------------
 Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Dim As _Unsigned Long I
     If UseDefaultFont Then
@@ -553,11 +568,3 @@ Function RemoveDoubleQuotes$ (__S$)
         RemoveDoubleQuotes$ = __S$
     End If
 End Function
-Sub CriticalError (__E$)
-    Write_Log __E$
-    GL_CURRENT_STATE = CONST_GL_STATE_FREE_ASSETS
-    While GL_CURRENT_STATE: Wend
-    If LogFile Then Close #100 'Close Log File
-    Shell "start notepad log.txt"
-    System
-End Sub
