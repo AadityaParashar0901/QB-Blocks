@@ -88,6 +88,9 @@ Sub LoadChunk (CX As Long, CZ As Long) Static
                 TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block)
             Next Y
     Next Z, X
+    ' Code to Generate Tree
+    ' Currently makes splines of trees
+
     'For X = 0 To 17
     '    For Z = 0 To 17
     '        Biome = getBiome!(PX + X, PZ + Z)

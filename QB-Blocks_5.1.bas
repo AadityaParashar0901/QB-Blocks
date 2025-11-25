@@ -19,17 +19,20 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 4
+Const MaxRenderDistance = 64
 Const WaterLevel = 64
 Const SuperFastChunkLoading = -1
 Const FastChunkLoading = -1
+Const GL_Chunk_Rendering = -1 ' Loads 2401 Chunks in ~ 2 minutes with less GL FPS
+'                               Else ~ 7 minutes with less BOTH FPS (on my laptop)
+Const UseDefaultFont = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
 Const MaxChunks = MaxRenderDistanceX * MaxRenderDistanceZ
 Write_Log "Max Chunks: " + _Trim$(Str$(MaxChunks))
-Const MaxRenderPipelineSize = MaxChunks * 196608
-Const ChunkDataSize = 196608
+Const ChunkDataSize = 4096 ' Since 4096 is the maximum stable count, else 196608
+Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 '    Chunk Size: 16 x 256 x 16
 '    in the best case, where all the faces of a chunk are visible: 8 * 128 * 8 blocks
 '    for each face (6), each vertex (4) -> 8 * 128 * 8 * 6 * 4 = 196608 (192 KiB)
@@ -38,9 +41,10 @@ Const ChunkDataSize = 196608
 '        17 * 192 -> 3264 KiB = 3.1875 MiB
 
 '--- Game Default Settings ---
-Dim Shared As _Unsigned _Byte Fov, Fog, RenderDistance
+Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = 0
+Fps = 60 ' _FPS
 RenderDistance = MaxRenderDistance
 '-----------------------------
 
@@ -67,6 +71,7 @@ GL_EXTRA_STATE = CONST_GL_STATE_SHOW_LOADING_MENU
 
 _GLRender _Behind
 
+' All Quads Rendering Data (Divided for Individual Chunks)
 Dim Shared Vertices(0 To MaxRenderPipelineSize - 1) As Vec3_Int
 Dim Shared TextureCoords(0 To MaxRenderPipelineSize - 1) As Vec2_Float
 Dim Shared Colors(0 To MaxRenderPipelineSize - 1) As Vec3_Byte
@@ -92,7 +97,7 @@ Dim Shared As Chunk Chunks(1 To MaxChunks)
 Type ChunkData
     As _Unsigned _Byte Block, Light
 End Type
-Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks)
+Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks) ' used to store Chunk Blocks, Lighting
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Data, Render Data Load Queue
 Dim Shared As String ChunkDataLoadQueue, RenderDataLoadQueue
@@ -117,8 +122,7 @@ Dim Shared As _Unsigned _Byte CinematicCamera
 Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk
 Dim Shared As Vec3_Byte PlayerInChunk
 
-'    Sun
-'    Moon
+'    Sun, Moon -> not implemented yet
 '    Sky
 Dim Shared As Long SkyColor
 Dim Shared SkyColorRed~%%, SkyColorGreen~%%, SkyColorBlue~%%
@@ -136,41 +140,46 @@ While _Resize: Wend
 '--------------
 
 '--- Assets ---
-'$Include:'AssetsParser.bas'
+'$Include:'AssetsParser.bas' ' Parse assets.list file and load assets
 '--------------
 
 '--- Biomes ---
-'$Include:'BiomesParser.bas'
+'$Include:'BiomesParser.bas' ' Parse biomes.list file and load biomes & properties
 '--------------
 
 '--- Noise ---
 Dim Shared Seed As _Unsigned Long
 Randomize Timer
-If _CommandCount Then Seed = Val("&H" + Command$) Else Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+If _CommandCount Then ' load seed
+    Seed = Val("&H" + Command$)
+Else ' or generate seed
+    Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+End If
 Write_Log "Seed: " + Hex$(Seed) + "h"
 '-------------
 
 '--- Font ---
-Dim Shared Font As String
+Dim Shared Font As String, DefaultFont As Long
 Font = LoadBitPack("assets/font/ascii.bpc")
+DefaultFont = _LoadFont("assets/font/JetBrainsMono-Regular.ttf", 16)
+If DefaultFont > 0 Then _Font DefaultFont
 '------------
 
 '--- FPS ---
 Dim Shared As _Unsigned Integer LFPS, LFPSCount, GFPS, GFPSCount
-LFPS = 60
-GFPS = 60
+LFPS = 60: GFPS = 60 ' Set to 60, to prevent zero division error at the beginning
 Dim As Long FPSCounterTimer
 FPSCounterTimer = _FreeTimer
 On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 '-----------
 
 '--- Start Game ---
+RebuildChunkDataLoadQueue ' Rebuilt the Chunk Loading Queue
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
-_FPS 240
+_FPS Fps
 
-RebuildChunkDataLoadQueue
 Do
     On Error GoTo ErrHandler
     _Limit 60
@@ -186,6 +195,7 @@ Do
             _FreeImage tmpScreen&
             _GLRender _Behind
             Color White, _RGB32(0, 127)
+            If DefaultFont > 0 Then _Font DefaultFont
         End If
     End If
 
@@ -193,7 +203,7 @@ Do
         __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
         LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
     End If
-    If Len(RenderDataLoadQueue) Then
+    If GL_Chunk_Rendering = 0 And Len(RenderDataLoadQueue) Then
         __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
         RenderChunk CVL(__Chunk$)
     End If
@@ -386,8 +396,8 @@ Sub _GL Static
             PrintString 0, 32, "Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
-                PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible), White
-                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 2)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), White
+                PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), White
+                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), White
                 PrintString 0, 96, "Terrain", White
                 Biome! = getBiome(Player.Position.X, Player.Position.Z)
                 Biome1~%% = Int(Biome!)
@@ -404,6 +414,10 @@ Sub _GL Static
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
     End Select
+    If GL_Chunk_Rendering And Len(RenderDataLoadQueue) Then
+        __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
+        RenderChunk CVL(__Chunk$)
+    End If
     GFPSCount = GFPSCount + 1
 End Sub
 Function glVec4%& (X!, Y!, Z!, W!)
@@ -458,6 +472,7 @@ Function getHeight! (X As Long, Z As Long, Biome As Single) Static
     Static As Long PX, PZ
     Static Biome1~%%, Biome2~%%, dBiome!
     Static GroundHeightBias!, ExcitedHeightBias!, BiomeSmoothness!, GroundHeight!, ExcitedHeight!
+    Static gH!, old_gH!
     SX = _SHR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
     Biome1~%% = Int(Biome)
@@ -469,7 +484,9 @@ Function getHeight! (X As Long, Z As Long, Biome As Single) Static
     'BiomeSmoothness! is not currently in use
     GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
     ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) ' BiomeSmoothness!
-    getHeight! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
+    gH! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
+    If gH! > 256 Then getHeight! = old_gH! Else getHeight! = gH!
+    old_gH! = gH!
 End Function
 Function getBiome! (X As Long, Z As Long) Static
     Static As Integer SX, SZ
@@ -496,12 +513,16 @@ Sub File_Log (Log$)
 End Sub
 Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Dim As _Unsigned Long I
-    For I = 1 To Len(T$)
-        B~%% = Asc(T$, I)
-        __Y~% = _SHR(B~%%, 4)
-        __X~% = B~%% - _SHL(__Y~%, 4)
-        DrawBitPackPart Font, X + (I - 1) * 16, Y, Colour, _SHL(__X~%, 4), _SHL(__Y~%, 4), _SHL(__X~%, 4) + 15, _SHL(__Y~%, 4) + 15
-    Next I
+    If UseDefaultFont Then
+        Color Colour: _PrintString (X, Y), T$
+    Else
+        For I = 1 To Len(T$)
+            B~%% = Asc(T$, I)
+            __Y~% = _SHR(B~%%, 4)
+            __X~% = B~%% - _SHL(__Y~%, 4)
+            DrawBitPackPart Font, X + (I - 1) * 16, Y, Colour, _SHL(__X~%, 4), _SHL(__Y~%, 4), _SHL(__X~%, 4) + 15, _SHL(__Y~%, 4) + 15
+        Next I
+    End If
 End Sub
 '--- Libraries ---
 '$Include:'lib/noise.bm'
