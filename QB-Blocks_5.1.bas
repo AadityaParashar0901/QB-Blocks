@@ -125,16 +125,26 @@ Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk ' used to calculate the chun
 Dim Shared As Vec3_Byte PlayerInChunk
 
 '    Clouds
-Dim Shared As Vec3_Long CloudVertices(0 To 262143)
-Dim Shared As Vec4_Byte CloudColors(0 To 262143)
+Dim Shared As Vec3_Long CloudVertices(0 To 131071)
+Dim Shared As Vec4_Byte CloudColors(0 To 131071)
 Dim Shared As _Unsigned Long TotalClouds
-'    Sun, Moon -> not implemented yet
+'    Sun, Moon
+Dim Shared As Vec3_Int SunVertices(0 To 23), MoonVertices(0 To 23)
+Dim Shared As Vec3_Byte SunColors(0 To 23), MoonColors(0 To 23)
+'    Stars
+Dim Shared As Vec3_Long StarsVertices(0 To 65535)
+Dim Shared As Vec3_Byte StarsColors(0 To 65535)
+Dim Shared As _Unsigned Long TotalStars
 '    Sky
 Dim Shared As Long SkyColor
 Dim Shared SkyColorRed~%%, SkyColorGreen~%%, SkyColorBlue~%%
 Dim Shared SkyColorRed!, SkyColorGreen!, SkyColorBlue!
 SetSkyColor LightBlue
 '--------------------
+
+'--- Game Time ---
+Dim Shared GameTime As Single
+'-----------------
 
 '--- Screen ---
 Dim Shared As Long MainScreen, ScreenWidth, ScreenHeight
@@ -181,7 +191,7 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 
 '--- Start Game ---
 RebuildChunkDataLoadQueue ' Build the Chunk Loading Queue
-BuildClouds ' Build the Clouds
+BuildCloudsStarsSunMoon ' Build the Clouds
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
@@ -244,17 +254,18 @@ Sub SimulateCamera
     SetSkyColor _RGB32(0, 127, 255)
 End Sub
 Sub SetSkyColor (Colour&) Static
-    SkyColorRed~%% = SkyColorRed~%% + Sgn(_Red32(Colour&) - SkyColorRed~%%)
-    SkyColorGreen~%% = SkyColorGreen~%% + Sgn(_Green32(Colour&) - SkyColorGreen~%%)
-    SkyColorBlue~%% = SkyColorBlue~%% + Sgn(_Blue32(Colour&) - SkyColorBlue~%%)
+    SkyColorRed~%% = SkyColorRed~%% + (_Red32(Colour&) - SkyColorRed~%%)
+    SkyColorGreen~%% = SkyColorGreen~%% + (_Green32(Colour&) - SkyColorGreen~%%)
+    SkyColorBlue~%% = SkyColorBlue~%% + (_Blue32(Colour&) - SkyColorBlue~%%)
     SkyColor = _RGB32(SkyColorRed~%%, SkyColorGreen~%%, SkyColorBlue~%%)
     SkyColorRed! = SkyColorRed~%% / 255
     SkyColorGreen! = SkyColorGreen~%% / 255
     SkyColorBlue! = SkyColorBlue~%% / 255
 End Sub
-Sub BuildClouds Static
+Sub BuildCloudsStarsSunMoon Static
     Static CloudsImage As Long
     Static __X, __Z, __P&, __I%
+    ' Generate Clouds
     CloudsImage = _LoadImage("assets/environment/clouds.png", 32)
     _Source CloudsImage
     TotalClouds = 0
@@ -276,15 +287,66 @@ Sub BuildClouds Static
     Next __Z, __X
     _Source 0
     _FreeImage CloudsImage
+    ' Generate Stars
+    For __X = 0 To 255
+        For __I% = 0 To 23
+            StarsVertices(TotalStars).X = (Rnd - 0.5) * 12288 + CubeVertices(__I%).X
+            StarsVertices(TotalStars).Y = (Rnd - 0.5) * 12288 + CubeVertices(__I%).Y
+            StarsVertices(TotalStars).Z = (Rnd - 0.5) * 12288 + CubeVertices(__I%).Z
+            StarsColors(TotalStars).X = 0: StarsColors(TotalStars).Y = 127: StarsColors(TotalStars).Z = 255
+            TotalStars = TotalStars + 1
+    Next __I%, __X
+    ' Generate Sun & Moon
+    For __I% = 0 To 23
+        SunVertices(__I%).X = (CubeVertices(__I%).X - 0.5) * 1024
+        SunVertices(__I%).Y = (CubeVertices(__I%).Y - 0.5) * 1024
+        SunVertices(__I%).Z = (CubeVertices(__I%).Z - 0.5) * 1024 - 8192
+        SunColors(__I%).X = 255: SunColors(__I%).Y = 191: SunColors(__I%).Z = 0
+        MoonVertices(__I%).X = (CubeVertices(__I%).X - 0.5) * 256
+        MoonVertices(__I%).Y = (CubeVertices(__I%).Y - 0.5) * 256
+        MoonVertices(__I%).Z = (CubeVertices(__I%).Z - 0.5) * 256 + 4096
+        MoonColors(__I%).X = 223: MoonColors(__I%).Y = 223: MoonColors(__I%).Z = 255
+    Next __I%
 End Sub
-Sub ShowClouds Static
+Sub ShowCloudsStarsSunMoon Static
     Static CloudTranslateX
-    _glTranslatef CloudTranslateX, 0, 0
+
+    _glPushMatrix
+
+    _glTranslatef Camera.Position.X, Camera.Position.Y, Camera.Position.Z
+
+    _glRotatef GameTime / 4, 1, 0, 0
+
+    _glEnableClientState _GL_VERTEX_ARRAY
+    _glEnableClientState _GL_COLOR_ARRAY
+    '    Stars
+    _glVertexPointer 3, _GL_INT, 0, _Offset(StarsVertices(0))
+    _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(StarsColors(0))
+    _glDrawArrays _GL_POINTS, 0, TotalStars
+    '    Sun
+    _glVertexPointer 3, _GL_SHORT, 0, _Offset(SunVertices(0))
+    _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(SunColors(0))
+    _glDrawArrays _GL_QUADS, 0, 24
+    '    Moon
+    _glVertexPointer 3, _GL_SHORT, 0, _Offset(MoonVertices(0))
+    _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(MoonColors(0))
+    _glDrawArrays _GL_QUADS, 0, 24
+
+    _glRotatef -GameTime / 4, 1, 0, 0
+
+    '    Draw Clouds
+    _glTranslatef CloudTranslateX, -Camera.Position.Y, 0
     _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
     _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
     _glDrawArrays _GL_QUADS, 0, TotalClouds
-    _glTranslatef -CloudTranslateX, 0, 0
+    _glTranslatef -CloudTranslateX, Camera.Position.Y, 0
     CloudTranslateX = ClampCycle(-128, CloudTranslateX + 1 / GFPS, 128)
+    _glDisableClientState _GL_COLOR_ARRAY
+    _glDisableClientState _GL_VERTEX_ARRAY
+
+    _glPopMatrix
+
+    GameTime = ClampCycle(0, GameTime + 1, 1439)
 End Sub
 Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
@@ -297,6 +359,7 @@ Sub _GL Static
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_PAUSE_MENU
             _MouseShow
+            While _MouseInput: Wend
             Select Case _KeyHit
                 Case 27: GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
             End Select
@@ -360,11 +423,12 @@ Sub _GL Static
             _glRotatef Player.Angle.Y, 1, 0, 0
             _glRotatef Player.Angle.X, 0, 1, 0
             _glPushMatrix
+
             _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
             NewFov = NewFov + Sgn(Fov - Zoom * (Fov - 30) - NewFov)
-            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 4096
+            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 16384
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
             If Fog Then
@@ -375,6 +439,8 @@ Sub _GL Static
                 _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
                 _glFogf _GL_FOG_DENSITY, 10
             End If
+
+            ShowCloudsStarsSunMoon
 
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
@@ -418,12 +484,6 @@ Sub _GL Static
             _glDisableClientState _GL_VERTEX_ARRAY
             _glDisable _GL_TEXTURE_2D
             _glDisable _GL_CULL_FACE
-
-            _glEnableClientState _GL_VERTEX_ARRAY
-            _glEnableClientState _GL_COLOR_ARRAY
-            ShowClouds
-            _glDisableClientState _GL_COLOR_ARRAY
-            _glDisableClientState _GL_VERTEX_ARRAY
 
             _glPopMatrix
 
