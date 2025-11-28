@@ -2,7 +2,7 @@
 Type Vec3_Byte ' used to store colors
     As _Byte X, Y, Z
 End Type
-Type Vec4_Byte ' was used to store colors
+Type Vec4_Byte ' used to store colors for clouds
     As _Byte X, Y, Z, W
 End Type
 Type Vec2_Float ' used to store texture coordinates

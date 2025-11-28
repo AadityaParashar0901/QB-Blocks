@@ -74,7 +74,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
             If Height > 256 Then Write_Log "Height Error"
             dHeight = Height - Int(Height)
             Height = Int(Height)
-            Asc(HeightMap, X * 18 + Z + 1) = Int(Height)
+            Asc(HeightMap, X * 18 + Z + 1) = Height
             For Y = 0 To 257
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)

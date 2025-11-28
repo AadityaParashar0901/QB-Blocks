@@ -19,11 +19,11 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 32
+Const MaxRenderDistance = 4
 Const WaterLevel = 64
 Const MinimalLighting = -1 ' Fast Lighting
 Const SkipLighting = -1 ' Disables Lighting
-Const GL_Chunk_Rendering = -1 ' Moves Chunk Rendering to GL Thread, 3 times Faster
+Const GL_Chunk_Rendering = 0 ' Moves Chunk Rendering to GL Thread, 3 times Faster, Bad for less render distance (or while you're playing)
 Const UseDefaultFont = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
@@ -51,6 +51,7 @@ RenderDistance = MaxRenderDistance
 
 '--- World Generation Settings ---
 Const BiomeSizeFactor = 256
+Const CloudsHeight = 384
 '---------------------------------
 
 '--- Error Handlers ---
@@ -123,6 +124,10 @@ Dim Shared As _Unsigned _Byte CinematicCamera
 Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk ' used to calculate the chunk in which the player is
 Dim Shared As Vec3_Byte PlayerInChunk
 
+'    Clouds
+Dim Shared As Vec3_Long CloudVertices(0 To 262143)
+Dim Shared As Vec4_Byte CloudColors(0 To 262143)
+Dim Shared As _Unsigned Long TotalClouds
 '    Sun, Moon -> not implemented yet
 '    Sky
 Dim Shared As Long SkyColor
@@ -175,7 +180,8 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 '-----------
 
 '--- Start Game ---
-RebuildChunkDataLoadQueue ' Rebuilt the Chunk Loading Queue
+RebuildChunkDataLoadQueue ' Build the Chunk Loading Queue
+BuildClouds ' Build the Clouds
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY
 GL_EXTRA_STATE = CONST_GL_STATE_SHOW_FPS
@@ -245,6 +251,40 @@ Sub SetSkyColor (Colour&) Static
     SkyColorRed! = SkyColorRed~%% / 255
     SkyColorGreen! = SkyColorGreen~%% / 255
     SkyColorBlue! = SkyColorBlue~%% / 255
+End Sub
+Sub BuildClouds Static
+    Static CloudsImage As Long
+    Static __X, __Z, __P&, __I%
+    CloudsImage = _LoadImage("assets/environment/clouds.png", 32)
+    _Source CloudsImage
+    TotalClouds = 0
+    For __X = 0 To _Width(CloudsImage) - 1
+        For __Z = 0 To _Height(CloudsImage) - 1
+            __P& = Point(__X, __Z)
+            If __P& = &HFFFFFFFF Then
+                For __I% = 12 To 15
+                    CloudVertices(TotalClouds).X = _SHL(__X - 128 + CubeVertices(__I%).X, 5)
+                    CloudVertices(TotalClouds).Y = CloudsHeight + CubeVertices(__I%).Y
+                    CloudVertices(TotalClouds).Z = _SHL(__Z - 128 + CubeVertices(__I%).Z, 5)
+                    CloudColors(TotalClouds).X = 255
+                    CloudColors(TotalClouds).Y = 255
+                    CloudColors(TotalClouds).Z = 255
+                    CloudColors(TotalClouds).W = 127
+                    TotalClouds = TotalClouds + 1
+                Next __I%
+            End If
+    Next __Z, __X
+    _Source 0
+    _FreeImage CloudsImage
+End Sub
+Sub ShowClouds Static
+    Static CloudTranslateX
+    _glTranslatef CloudTranslateX, 0, 0
+    _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
+    _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
+    _glDrawArrays _GL_QUADS, 0, TotalClouds
+    _glTranslatef -CloudTranslateX, 0, 0
+    CloudTranslateX = ClampCycle(-128, CloudTranslateX + 1 / GFPS, 128)
 End Sub
 Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
@@ -378,6 +418,12 @@ Sub _GL Static
             _glDisableClientState _GL_VERTEX_ARRAY
             _glDisable _GL_TEXTURE_2D
             _glDisable _GL_CULL_FACE
+
+            _glEnableClientState _GL_VERTEX_ARRAY
+            _glEnableClientState _GL_COLOR_ARRAY
+            ShowClouds
+            _glDisableClientState _GL_COLOR_ARRAY
+            _glDisableClientState _GL_VERTEX_ARRAY
 
             _glPopMatrix
 
