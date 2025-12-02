@@ -3,7 +3,6 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
     Static As Long I, X, Z
     Static ChunkID As _Unsigned Long
     ChunkDataLoadQueue = ""
-    RenderDataLoadQueue = ""
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
@@ -19,7 +18,7 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
             Select Case I And 1
                 Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
                         ChunkID = getChunkID(X, Z)
-                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded <> 255 Then
+                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded < 253 Then
                             ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
@@ -29,7 +28,7 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
                     Next X
                 Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
                         ChunkID = getChunkID(X, Z)
-                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded <> 255 Then
+                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded < 253 Then
                             ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
@@ -40,11 +39,42 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
             End Select
         Next I
     Next R
+    For R = RenderDistance + 1 To MaxRenderDistance
+        tmpChunksStart.X = PlayerChunk.X - R
+        tmpChunksStart.Z = PlayerChunk.Z - R
+        tmpChunksEnd.X = PlayerChunk.X + R
+        tmpChunksEnd.Z = PlayerChunk.Z + R
+        For I = 0 To 3
+            Select Case I
+                Case 0: Z = tmpChunksStart.Z
+                Case 1: X = tmpChunksStart.X
+                Case 2: Z = tmpChunksEnd.Z
+                Case 3: X = tmpChunksEnd.X: tmpChunksEnd.Z = tmpChunksEnd.Z - 1
+            End Select
+            Select Case I And 1
+                Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
+                        ChunkID = getChunkID(X, Z)
+                        TotalChunksLoaded = TotalChunksLoaded + (Chunks(ChunkID).DataLoaded = 255)
+                        Chunks(ChunkID).DataLoaded = 0
+                    Next X
+                Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
+                        ChunkID = getChunkID(X, Z)
+                        TotalChunksLoaded = TotalChunksLoaded + (Chunks(ChunkID).DataLoaded = 255)
+                        Chunks(ChunkID).DataLoaded = 0
+                    Next Z
+            End Select
+        Next I
+    Next R
     'File_Log "Built ChunkLoadQueue:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3))
 End Sub
 Function getChunkID~& (X As Long, Z As Long) Static ' Hash Table approach, faster & enables resuming chunk loading
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
+Sub LoadNextChunk () Static
+    Static __Chunk$
+    __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
+    LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
+End Sub
 Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z
     Static As _Unsigned Long ChunkID
@@ -138,11 +168,18 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     'File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
     RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
 End Sub
+Sub RenderNextChunk () Static
+    Static __Chunk$
+    __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
+    RenderChunk CVL(__Chunk$)
+End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As Long X, Y, Z
-    Dim As _Unsigned Long VertexID
+    Static As _Unsigned Long VertexID
     Static As _Unsigned Long J, TextureID, TextureOffset
     Static As _Unsigned _Byte Block, Visibility, Face, Light
+    Static As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
+    If Chunks(ChunkID).DataLoaded < 253 Then Exit Sub
     J = ChunkID - 1
     VertexID = ChunkDataSize * J
     Chunks(ChunkID).VerticesCount = 0
@@ -161,24 +198,24 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
                         _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
                     For I = 0 To 23
                         Face = _SHR(I, 2)
-                        If (Visibility And _SHL(1, Face)) = 0 Then _Continue
+                        If (Visibility And _SHL(1, Face)) = 0 Then I = I + 3: _Continue
                         TextureID = Asc(Blocks(Block).Faces, Face + 1)
-                        If TextureID = 0 Then _Continue
+                        If TextureID = 0 Then I = I + 3: _Continue
                         TextureOffset = Textures(TextureID).Y
-                        omitFace = omitBlockFace(Block, Face)
+                        omitSimilarFace = omitBlockFace(Block, Face)
                         Select Case Face
-                            Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6: If omitFace And Block = ChunksData(X + 1, Y, Z, ChunkID).Block Then _Continue
-                            Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6: If omitFace And Block = ChunksData(X - 1, Y, Z, ChunkID).Block Then _Continue
-                            Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light: If omitFace And Block = ChunksData(X, Y + 1, Z, ChunkID).Block Then _Continue
-                            Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8: If omitFace And Block = ChunksData(X, Y - 1, Z, ChunkID).Block Then _Continue
-                            Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4: If omitFace And Block = ChunksData(X, Y, Z + 1, ChunkID).Block Then _Continue
-                            Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4: If omitFace And Block = ChunksData(X, Y, Z - 1, ChunkID).Block Then _Continue
+                            Case 0: Light = ChunksData(X + 1, Y, Z, ChunkID).Light - 6: If omitSimilarFace And Block = ChunksData(X + 1, Y, Z, ChunkID).Block Then I = I + 3: _Continue
+                            Case 1: Light = ChunksData(X - 1, Y, Z, ChunkID).Light - 6: If omitSimilarFace And Block = ChunksData(X - 1, Y, Z, ChunkID).Block Then I = I + 3: _Continue
+                            Case 2: Light = ChunksData(X, Y + 1, Z, ChunkID).Light: If omitSimilarFace And Block = ChunksData(X, Y + 1, Z, ChunkID).Block Then I = I + 3: _Continue
+                            Case 3: Light = ChunksData(X, Y - 1, Z, ChunkID).Light - 8: If omitSimilarFace And Block = ChunksData(X, Y - 1, Z, ChunkID).Block Then I = I + 3: _Continue
+                            Case 4: Light = ChunksData(X, Y, Z + 1, ChunkID).Light - 4: If omitSimilarFace And Block = ChunksData(X, Y, Z + 1, ChunkID).Block Then I = I + 3: _Continue
+                            Case 5: Light = ChunksData(X, Y, Z - 1, ChunkID).Light - 4: If omitSimilarFace And Block = ChunksData(X, Y, Z - 1, ChunkID).Block Then I = I + 3: _Continue
                         End Select
                         Vertices(VertexID).X = X + CubeVertices(I).X
                         Vertices(VertexID).Y = Y + CubeVertices(I).Y
                         Vertices(VertexID).Z = Z + CubeVertices(I).Z
                         TextureCoords(VertexID).X = CubeTextureCoords(I).X
-                        TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * TextureSize / TextureAtlasHeight
+                        TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
                         Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 15 - (Light - Light * (Light < 0)))
                         'Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkID, 0)
                         Colors(VertexID).Y = Colors(VertexID).X

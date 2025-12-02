@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 4
+Const MaxRenderDistance = 8
 Const WaterLevel = 64
 Const MinimalLighting = -1 ' Fast Lighting
 Const SkipLighting = -1 ' Disables Lighting
@@ -54,9 +54,10 @@ Const BiomeSizeFactor = 256
 Const CloudsHeight = 384
 '---------------------------------
 
-'--- Error Handlers ---
+'--- Debug & Error Handlers ---
 Dim Shared As _Unsigned Integer LastError
-'----------------------
+Const Debug_Menu_Show_Terrain_Info = 0 ' Fast
+'------------------------------
 
 '--- GL ---
 Dim Shared As _Unsigned _Byte GL_CURRENT_STATE, GL_EXTRA_STATE
@@ -217,12 +218,10 @@ Do
     End If
 
     If Len(ChunkDataLoadQueue) Then
-        __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
-        LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
+        LoadNextChunk
     End If
     If GL_Chunk_Rendering = 0 And Len(RenderDataLoadQueue) Then
-        __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
-        RenderChunk CVL(__Chunk$)
+        RenderNextChunk
     End If
 
     If _Exit Then Exit Do
@@ -261,6 +260,10 @@ Sub SetSkyColor (Colour&) Static
     SkyColorRed! = SkyColorRed~%% / 255
     SkyColorGreen! = SkyColorGreen~%% / 255
     SkyColorBlue! = SkyColorBlue~%% / 255
+End Sub
+Sub UpdateRenderDistance (__NewRenderDistance&)
+    RenderDistance = Clamp(1, __NewRenderDistance&, MaxRenderDistance)
+    RebuildChunkDataLoadQueue
 End Sub
 Sub BuildCloudsStarsSunMoon Static
     Static CloudsImage As Long
@@ -346,7 +349,7 @@ Sub ShowCloudsStarsSunMoon Static
 
     _glPopMatrix
 
-    GameTime = ClampCycle(0, GameTime + 1, 1439)
+    GameTime = ClampCycle(0, GameTime + 1 / GFPS, 1439)
 End Sub
 Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
@@ -377,6 +380,7 @@ Sub _GL Static
             Select Case _KeyHit
                 Case 27: GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU
                 Case 15616: GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
+                    'Case 70, 102: UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1 ' Update Render Distance with F, Shift + F
             End Select
             '----------------
             '--- Chunk Coordinates ---
@@ -506,28 +510,29 @@ Sub _GL Static
             PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z), White
             PrintString 0, 32, "Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
-                PrintString 0, 48, "Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
+                PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), White
                 PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), White
-                PrintString 0, 96, "Terrain", White
-                Biome! = getBiome(Player.Position.X, Player.Position.Z)
-                Biome1~%% = Int(Biome!)
-                Biome2~%% = Biome1~%% + 1
-                dBiome! = Biome! - Int(Biome!)
-                GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
-                ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
-                BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
-                PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
-                PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), White
-                PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
-                PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
+                If Debug_Menu_Show_Terrain_Info Then
+                    PrintString 0, 96, "Terrain", White
+                    Biome! = getBiome(Player.Position.X, Player.Position.Z)
+                    Biome1~%% = Int(Biome!)
+                    Biome2~%% = Biome1~%% + 1
+                    dBiome! = Biome! - Int(Biome!)
+                    GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
+                    ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
+                    BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
+                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
+                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), White
+                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
+                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
+                End If
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
     End Select
     If GL_Chunk_Rendering And Len(RenderDataLoadQueue) Then
-        __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
-        RenderChunk CVL(__Chunk$)
+        RenderNextChunk
     End If
     GFPSCount = GFPSCount + 1
 End Sub
