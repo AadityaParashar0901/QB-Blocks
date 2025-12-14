@@ -51,7 +51,7 @@ RenderDistance = 12
 
 '--- World Generation Settings ---
 Const BiomeSizeFactor = 256
-Const CloudsHeight = 384
+Const CloudsHeight = 192
 '---------------------------------
 
 '--- Debug & Error Handlers ---
@@ -126,9 +126,10 @@ Dim Shared As Vec3_Long oldPlayerChunk, PlayerChunk ' used to calculate the chun
 Dim Shared As Vec3_Byte PlayerInChunk
 
 '    Clouds
-Dim Shared As Vec3_Long CloudVertices(0 To 131071)
-Dim Shared As Vec4_Byte CloudColors(0 To 131071)
+Dim Shared As Vec3_Long CloudVertices(0 To 262144)
+Dim Shared As Vec4_Byte CloudColors(0 To 262144)
 Dim Shared As _Unsigned Long TotalClouds
+
 '    Sun, Moon
 Dim Shared As Vec3_Int SunVertices(0 To 23), MoonVertices(0 To 23)
 Dim Shared As Vec3_Byte SunColors(0 To 23), MoonColors(0 To 23)
@@ -268,27 +269,33 @@ End Sub
 Sub BuildCloudsStarsSunMoon Static
     Static CloudsImage As Long
     Static __X, __Z, __P&, __I%
+    Static As Integer hW, hH
     ' Generate Clouds
     CloudsImage = _LoadImage("assets/environment/clouds.png", 32)
-    _Source CloudsImage
     TotalClouds = 0
+    hW = _SHR(_Width(CloudsImage), 1)
+    hH = _SHR(_Height(CloudsImage), 1)
     For __X = 0 To _Width(CloudsImage) - 1
         For __Z = 0 To _Height(CloudsImage) - 1
-            __P& = Point(__X, __Z)
-            If __P& = &HFFFFFFFF Then
-                For __I% = 12 To 15
-                    CloudVertices(TotalClouds).X = _SHL(__X - 128 + CubeVertices(__I%).X, 5)
-                    CloudVertices(TotalClouds).Y = CloudsHeight + CubeVertices(__I%).Y
-                    CloudVertices(TotalClouds).Z = _SHL(__Z - 128 + CubeVertices(__I%).Z, 5)
-                    CloudColors(TotalClouds).X = 255
-                    CloudColors(TotalClouds).Y = 255
-                    CloudColors(TotalClouds).Z = 255
-                    CloudColors(TotalClouds).W = 127
-                    TotalClouds = TotalClouds + 1
-                Next __I%
-            End If
+            If GetColorAtPosition&(CloudsImage, __X, __Z) = 0 Then _Continue
+            For __I% = 0 To 23
+                Select Case _SHR(__I%, 2)
+                    Case 0: If GetColorAtPosition&(CloudsImage, __X + 1, __Z) Then _Continue
+                    Case 1: If GetColorAtPosition&(CloudsImage, __X - 1, __Z) Then _Continue
+                    Case 4: If GetColorAtPosition&(CloudsImage, __X, __Z + 1) Then _Continue
+                    Case 5: If GetColorAtPosition&(CloudsImage, __X, __Z - 1) Then _Continue
+                End Select
+                CloudVertices(TotalClouds).X = (__X - hW) * 16 + _SHL(CubeVertices(__I%).X, 4)
+                CloudVertices(TotalClouds).Y = CloudsHeight + _SHL(CubeVertices(__I%).Y, 2)
+
+                CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _SHL(CubeVertices(__I%).Z, 4)
+                CloudColors(TotalClouds).X = 255
+                CloudColors(TotalClouds).Y = 255
+                CloudColors(TotalClouds).Z = 255
+                CloudColors(TotalClouds).W = 191
+                TotalClouds = TotalClouds + 1
+            Next __I%
     Next __Z, __X
-    _Source 0
     _FreeImage CloudsImage
     ' Generate Stars
     For __X = 0 To 255
@@ -312,12 +319,10 @@ Sub BuildCloudsStarsSunMoon Static
     Next __I%
 End Sub
 Sub ShowCloudsStarsSunMoon Static
-    Static CloudTranslateX
-
+    Static As Single CloudsTranslateX
     _glPushMatrix
 
     _glTranslatef Camera.Position.X, Camera.Position.Y, Camera.Position.Z
-
     _glRotatef GameTime / 4, 1, 0, 0
 
     _glEnableClientState _GL_VERTEX_ARRAY
@@ -338,16 +343,52 @@ Sub ShowCloudsStarsSunMoon Static
     _glDrawArrays _GL_QUADS, 0, 24
 
     _glRotatef -GameTime / 4, 1, 0, 0
+    _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
 
     '    Draw Clouds
-    _glTranslatef CloudTranslateX, -Camera.Position.Y, 0
+    _glTranslatef CloudsTranslateX, 0, 0
     _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
     _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
     _glDrawArrays _GL_QUADS, 0, TotalClouds
-    _glTranslatef -CloudTranslateX, Camera.Position.Y, 0
-    CloudTranslateX = ClampCycle(-128, CloudTranslateX + 1 / GFPS, 128)
+    _glTranslatef -CloudsTranslateX, 0, 0
     _glDisableClientState _GL_COLOR_ARRAY
     _glDisableClientState _GL_VERTEX_ARRAY
+    '    Simulate Clouds
+    CloudsTranslateX = ClampCycle(0, CloudsTranslateX + 0.1, 3.9)
+    __MaxX = (Camera.Position.X + 2048) \ 4
+    __MinX = (Camera.Position.X - 2048) \ 4
+    __MaxZ = (Camera.Position.Z + 2048) \ 4
+    __MinZ = (Camera.Position.Z - 2048) \ 4
+    For I = 0 To TotalClouds - 1 Step 4
+        If CloudVertices(I).X \ 4 > __MaxX Then
+            CloudVertices(I).X = CloudVertices(I).X - 4096
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X - 4096
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X - 4096
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X - 4096
+        ElseIf CloudVertices(I).X \ 4 < __MinX Then
+            CloudVertices(I).X = CloudVertices(I).X + 4096
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4096
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4096
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4096
+        End If
+        If CloudsTranslateX = 0 Then
+            CloudVertices(I).X = CloudVertices(I).X + 4
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4
+        End If
+        If CloudVertices(I).Z \ 4 > __MaxZ Then
+            CloudVertices(I).Z = CloudVertices(I).Z - 4096
+            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z - 4096
+            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z - 4096
+            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z - 4096
+        ElseIf CloudVertices(I).Z \ 4 < __MinZ Then
+            CloudVertices(I).Z = CloudVertices(I).Z + 4096
+            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z + 4096
+            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z + 4096
+            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
+        End If
+    Next I
 
     _glPopMatrix
 
@@ -516,6 +557,7 @@ Sub _GL Static
                 PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
+                PrintString 0, 176, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 If Debug_Menu_Show_Terrain_Info Then
                     PrintString 0, 96, "Terrain", Green
                     Biome! = getBiome(Player.Position.X, Player.Position.Z)
@@ -681,4 +723,10 @@ Function RemoveDoubleQuotes$ (__S$)
     Else
         RemoveDoubleQuotes$ = __S$
     End If
+End Function
+Function GetColorAtPosition& (IMG&, X&, Y&) Static ' Used for generating Clouds
+    __S& = _Source
+    _Source IMG&
+    GetColorAtPosition = Point(ClampCycle(0, X&, _Width(IMG&) - 1), ClampCycle(0, Y&, _Height(IMG&) - 1))
+    _Source __S&
 End Function
