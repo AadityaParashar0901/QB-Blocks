@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 8
+Const MaxRenderDistance = 16
 Const WaterLevel = 64
 Const MinimalLighting = -1 ' Fast Lighting
 Const SkipLighting = -1 ' Disables Lighting
@@ -44,9 +44,9 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
-Fog = 0
-Fps = 60 ' _FPS
-RenderDistance = MaxRenderDistance
+Fog = -1
+Fps = 48 ' _FPS
+RenderDistance = 12
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -301,9 +301,9 @@ Sub BuildCloudsStarsSunMoon Static
     Next __I%, __X
     ' Generate Sun & Moon
     For __I% = 0 To 23
-        SunVertices(__I%).X = (CubeVertices(__I%).X - 0.5) * 1024
-        SunVertices(__I%).Y = (CubeVertices(__I%).Y - 0.5) * 1024
-        SunVertices(__I%).Z = (CubeVertices(__I%).Z - 0.5) * 1024 - 8192
+        SunVertices(__I%).X = (CubeVertices(__I%).X - 0.5) * 4096
+        SunVertices(__I%).Y = (CubeVertices(__I%).Y - 0.5) * 4096
+        SunVertices(__I%).Z = (CubeVertices(__I%).Z - 0.5) * 4096 - 8192
         SunColors(__I%).X = 255: SunColors(__I%).Y = 191: SunColors(__I%).Z = 0
         MoonVertices(__I%).X = (CubeVertices(__I%).X - 0.5) * 256
         MoonVertices(__I%).Y = (CubeVertices(__I%).Y - 0.5) * 256
@@ -322,10 +322,12 @@ Sub ShowCloudsStarsSunMoon Static
 
     _glEnableClientState _GL_VERTEX_ARRAY
     _glEnableClientState _GL_COLOR_ARRAY
-    '    Stars
-    _glVertexPointer 3, _GL_INT, 0, _Offset(StarsVertices(0))
-    _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(StarsColors(0))
-    _glDrawArrays _GL_POINTS, 0, TotalStars
+    '    Stars - only in night time
+    If GameTime >= 720 Then
+        _glVertexPointer 3, _GL_INT, 0, _Offset(StarsVertices(0))
+        _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(StarsColors(0))
+        _glDrawArrays _GL_POINTS, 0, TotalStars
+    End If
     '    Sun
     _glVertexPointer 3, _GL_SHORT, 0, _Offset(SunVertices(0))
     _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(SunColors(0))
@@ -349,7 +351,7 @@ Sub ShowCloudsStarsSunMoon Static
 
     _glPopMatrix
 
-    GameTime = ClampCycle(0, GameTime + 1 / GFPS, 1439)
+    If GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY Then GameTime = ClampCycle(0, GameTime + 1 / GFPS - (_KeyDown(84) Or _KeyDown(116)), 1439)
 End Sub
 Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
@@ -380,7 +382,7 @@ Sub _GL Static
             Select Case _KeyHit
                 Case 27: GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU
                 Case 15616: GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
-                    'Case 70, 102: UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1 ' Update Render Distance with F, Shift + F
+                    'Case 70, 102: UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1 ' Update Render Distance with F, Shift + F, has bugs
             End Select
             '----------------
             '--- Chunk Coordinates ---
@@ -417,7 +419,7 @@ Sub _GL Static
             _glEnable _GL_LINE_SMOOTH
             _glEnable _GL_POLYGON_SMOOTH
             _glEnable _GL_POINT_SMOOTH
-            _glDisable _GL_MULTISAMPLE ' no mixing of texture colors when a triangle is far
+            _glDisable _GL_MULTISAMPLE ' no mixing of texture colors when a quad is far
 
             _glEnable _GL_DEPTH_TEST
             _glEnable _GL_CULL_FACE ' for performance
@@ -435,6 +437,9 @@ Sub _GL Static
             _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 16384
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
+
+            ShowCloudsStarsSunMoon
+
             If Fog Then
                 _glEnable _GL_FOG
                 _glFogi _GL_FOG_MODE, _GL_LINEAR
@@ -443,8 +448,6 @@ Sub _GL Static
                 _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
                 _glFogf _GL_FOG_DENSITY, 10
             End If
-
-            ShowCloudsStarsSunMoon
 
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
@@ -507,14 +510,14 @@ Sub _GL Static
             _Display
         Case CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU
             PrintString 0, 0, "FPS (G/L):" + Str$(GFPS) + "," + Str$(LFPS), White
-            PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z), White
-            PrintString 0, 32, "Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
+            PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z) + ", Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
+            PrintString 0, 32, "Game Time:" + Str$(GameTime), White
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
-                PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), White
-                PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), White
-                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), White
+                PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), LightBlue
+                PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
+                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
                 If Debug_Menu_Show_Terrain_Info Then
-                    PrintString 0, 96, "Terrain", White
+                    PrintString 0, 96, "Terrain", Green
                     Biome! = getBiome(Player.Position.X, Player.Position.Z)
                     Biome1~%% = Int(Biome!)
                     Biome2~%% = Biome1~%% + 1
@@ -522,10 +525,10 @@ Sub _GL Static
                     GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
                     ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
                     BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
-                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), White
-                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), White
-                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), White
-                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), White
+                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), Green
+                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), Green
+                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), Green
+                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), Green
                 End If
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF

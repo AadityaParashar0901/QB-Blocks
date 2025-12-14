@@ -95,6 +95,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Chunks(ChunkID).VerticesCount = 0
     Chunks(ChunkID).TransparentVerticesCount = 0
     TransparentBlocksCount = 0
+    TreeX = 0
+    TreeZ = 0
     ' ChunkLoading
     For X = 0 To 17
         For Z = 0 To 17
@@ -117,33 +119,42 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
                 ChunksData(X, Y, Z, ChunkID).Light = 15
                 TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block)
             Next Y
+            If fractal2(PX + X, PZ + Z, 16, 0, 5) > 0.8 And TreeX = 0 And TreeZ = 0 Then
+                TreeX = X
+                TreeZ = Z
+            End If
     Next Z, X
     ' Code to Generate Tree
-    ' Currently makes splines of trees
+    ' Currently makes splines of trees -> switched to one tree per chunk
 
     'For X = 0 To 17
     '    For Z = 0 To 17
-    '        Biome = getBiome!(PX + X, PZ + Z)
-    '        Height = Asc(HeightMap, X * 18 + Z + 1)
-    '        If Height <= WaterLevel Then _Continue
-    '        If InRange(0.75, fractal2(PX + X, PZ + Z, 16, 0, 5), 0.75) = 0 And InRange(0.75, fractal2(PX + X, PZ + Z, 32, 0, 6), 0.75) = 0 Then _Continue
-    '        TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
-    '        If TreeLog = 0 Then _Continue
-    '        TreeLeaves = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_leaves"))
-    '        TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
-    '        TreeHeight = fractal2(PX + X, PZ + Z, 64, 0, 7) * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
-    '        S = Height + 1
-    '        E = Height + TreeHeight
-    '        For Y = S To E
-    '            ChunksData(X, Y, Z, ChunkID).Block = TreeLog
-    '        Next Y
-    '        For Y = E - 1 to E
-    '            For XX = X - 1 To X + 1
-    '                For ZZ = Z - 1 To Z + 1
-    '                    If XX < 0 Or XX > 17 Or ZZ < 0 Or ZZ > 17 Then _Continue
-    '                    If ChunksData(XX, Y, ZZ, ChunkID).Block = 0 Then ChunksData(XX, Y, ZZ, ChunkID).Block = TreeLeaves
-    '            Next ZZ, XX
-    '        Next Y
+    X = TreeX
+    Z = TreeZ
+    For T = 1 To 1
+        If InRange(2, X, 15) = 0 Or InRange(2, Z, 15) = 0 Then _Continue
+        Biome = getBiome!(PX + X, PZ + Z)
+        Height = Asc(HeightMap, X * 18 + Z + 1)
+        If Height <= WaterLevel Then _Continue
+        '       If InRange(0.75, fractal2(PX + X, PZ + Z, 16, 0, 5), 0.75) = 0 And InRange(0.75, fractal2(PX + X, PZ + Z, 32, 0, 6), 0.75) = 0 Then _Continue
+        TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
+        If TreeLog = 0 Then _Continue
+        TreeLeaves = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_leaves"))
+        TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
+        TreeHeight = fractal2(PX + X, PZ + Z, 64, 0, 7) * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
+        S = Height + 1
+        E = Height + TreeHeight
+        For Y = S To E - 1
+            ChunksData(X, Y, Z, ChunkID).Block = TreeLog
+        Next Y
+        For Y = E - 1 to E
+            For XX = X - 1 To X + 1
+                For ZZ = Z - 1 To Z + 1
+                    If XX < 0 Or XX > 17 Or ZZ < 0 Or ZZ > 17 Then _Continue
+                    If ChunksData(XX, Y, ZZ, ChunkID).Block = 0 Then ChunksData(XX, Y, ZZ, ChunkID).Block = TreeLeaves: TransparentBlocksCount = TransparentBlocksCount + 1
+            Next ZZ, XX
+        Next Y
+    Next T
     'Next Z, X
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
     If SkipLighting = 0 Then ' Lighting
