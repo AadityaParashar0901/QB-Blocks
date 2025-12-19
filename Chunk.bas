@@ -73,7 +73,9 @@ End Function
 Sub LoadNextChunk () Static
     Static __Chunk$
     __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
+    ST# = Timer(0.001)
     LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
+    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 4) + MKL$((Timer(0.001) - ST#) * 1000)
 End Sub
 Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z
@@ -81,7 +83,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Single Height, dHeight
     Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
-    Static As String * 324 HeightMap ' Store the heightmap for tree generation
+    Static As String * 1296 HeightMap ' Store the heightmap for tree generation
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
     End If
@@ -92,6 +94,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Chunks(ChunkID).TZ = PZ
     Chunks(ChunkID).X = CX
     Chunks(ChunkID).Z = CZ
+    Chunks(ChunkID).MinimumHeight = 256
+    Chunks(ChunkID).MaximumHeight = WaterLevel + 1
     Chunks(ChunkID).VerticesCount = 0
     Chunks(ChunkID).TransparentVerticesCount = 0
     TransparentBlocksCount = 0
@@ -103,11 +107,15 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
             Biome = getBiome!(PX + X, PZ + Z)
             BiomeSelector = Int(Biome)
             Height = getHeight(PX + X, PZ + Z, Biome)
-            If Height > 256 Then Write_Log "Height Error"
+            Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4) = MKS$(Height)
+            Chunks(ChunkID).MaximumHeight = Clamp(Height + 1, Chunks(ChunkID).MaximumHeight, 256)
+            Chunks(ChunkID).MinimumHeight = Clamp(1, Chunks(ChunkID).MinimumHeight, Height - 1)
+    Next Z, X
+    For X = 0 To 17
+        For Z = 0 To 17
+            Height = CVS(Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4))
             dHeight = Height - Int(Height)
-            Height = Int(Height)
-            Asc(HeightMap, X * 18 + Z + 1) = Height
-            For Y = 0 To 257
+            For Y = Chunks(ChunkID).MinimumHeight - 1 To Chunks(ChunkID).MaximumHeight + 1
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)
                     Case Height - 2 To Height - 1: Block = BiomeBlocks(1, BiomeSelector)
@@ -182,7 +190,9 @@ End Sub
 Sub RenderNextChunk () Static
     Static __Chunk$
     __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
+    ST# = Timer(0.01)
     RenderChunk CVL(__Chunk$)
+    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 4) + MKL$((Timer(0.01) - ST#) * 1000)
 End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As Long X, Y, Z
@@ -198,7 +208,7 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     For Mode = 0 To 1
         For X = 1 To 16
             For Z = 1 To 16
-                For Y = 1 To 256
+                For Y = Chunks(ChunkID).MinimumHeight To Chunks(ChunkID).MaximumHeight
                     Block = ChunksData(X, Y, Z, ChunkID).Block
                     If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
                     Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or_

@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 32
 Const WaterLevel = 64
 Const MinimalLighting = -1 ' Fast Lighting
 Const SkipLighting = -1 ' Disables Lighting
@@ -45,18 +45,17 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
-Fps = 48 ' _FPS
-RenderDistance = 12
+Fps = 60 ' _FPS
+RenderDistance = MaxRenderDistance
 '-----------------------------
 
 '--- World Generation Settings ---
 Const BiomeSizeFactor = 256
-Const CloudsHeight = 192
+Const CloudsHeight = 384
 '---------------------------------
 
 '--- Debug & Error Handlers ---
 Dim Shared As _Unsigned Integer LastError
-Const Debug_Menu_Show_Terrain_Info = 0 ' Fast
 '------------------------------
 
 '--- GL ---
@@ -94,7 +93,7 @@ Dim Shared VEC4(3) As Single 'for glVec4
 Type Chunk
     As Long X, Z, TX, TZ
     As _Unsigned _Byte DataLoaded
-    As _Unsigned Integer VerticesCount, TransparentVerticesCount
+    As _Unsigned Integer VerticesCount, TransparentVerticesCount, MinimumHeight, MaximumHeight
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
 Type ChunkData
@@ -104,6 +103,7 @@ Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks) '
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Data, Render Data Load Queue
 Dim Shared As String ChunkDataLoadQueue, RenderDataLoadQueue
+Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
 '--------------
 
 '--- Player ---
@@ -201,7 +201,7 @@ _FPS Fps
 
 Do
     On Error GoTo ErrHandler
-    _Limit 60
+    _Limit 240
     If _Resize Then
         tmpScreenWidth = _ResizeWidth
         tmpScreenHeight = _ResizeHeight
@@ -351,7 +351,7 @@ Sub DrawClouds Static
     _glTranslatef CloudsTranslateX, 0, 0
     _glEnableClientState _GL_VERTEX_ARRAY
     _glEnableClientState _GL_COLOR_ARRAY
-    If Camera.Position.Y >= 256 Then
+    If Camera.Position.Y >= CloudsHeight Then
         _glPushMatrix
         For X = -1 To 1
             For Z = -1 To 1
@@ -487,7 +487,7 @@ Sub _GL Static
                 _glFogfv _GL_FOG_COLOR, glVec4(1, 1, 1, 1)
                 _glFogf _GL_FOG_DENSITY, 255
             End If
-            DrawClouds
+            If Camera.Position.Y < CloudsHeight Then DrawClouds
 
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
@@ -529,7 +529,9 @@ Sub _GL Static
             _glDisableClientState _GL_COLOR_ARRAY
             _glDisableClientState _GL_TEXTURE_COORD_ARRAY
             _glDisableClientState _GL_VERTEX_ARRAY
+
             _glDisable _GL_TEXTURE_2D
+            If Camera.Position.Y >= CloudsHeight Then DrawClouds
             _glDisable _GL_CULL_FACE
 
             _glPopMatrix
@@ -556,21 +558,14 @@ Sub _GL Static
                 PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
-                PrintString 0, 176, "Total Clouds:" + Str$(TotalClouds), LightGreen
-                If Debug_Menu_Show_Terrain_Info Then
-                    PrintString 0, 96, "Terrain", Pink
-                    Biome! = getBiome(Player.Position.X, Player.Position.Z)
-                    Biome1~%% = Int(Biome!)
-                    Biome2~%% = Biome1~%% + 1
-                    dBiome! = Biome! - Int(Biome!)
-                    GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
-                    ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
-                    BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
-                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), Pink
-                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), Pink
-                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), Pink
-                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), Pink
-                End If
+                PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
+                Line (16, _Height - 68)-(79, _Height - 5), _RGB32(0, 127), BF
+                For I = 1 To 64
+                    T% = Max(_Height - 70, _Height - 5 - CVL(Mid$(ChunkDataGraphTimer, _SHL(I, 2) - 3, 4)))
+                    Line (I + 15, _Height - 5)-(I + 15, T%), _RGB32(255, 0, 0)
+                    T% = Max(_Height - 70, _Height - 5 - CVL(Mid$(RenderDataGraphTimer, _SHL(I, 2) - 3, 4)))
+                    Line (I + 15, _Height - 5)-(I + 15, T%), _RGB32(0, 255, 0)
+                Next I
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display

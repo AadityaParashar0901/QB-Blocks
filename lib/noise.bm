@@ -17,6 +17,7 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
     Static As Double amplitude, total, maxAmplitude, scale
     Static As Single tX, tY
     Static As _Byte i
+    Static fX&, fY&, fX1&, fY1&, dX!, n00!, n01!, i1!
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -24,16 +25,12 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
         fX& = Int(tX)
         fY& = Int(tY)
         dX! = fade!(tX - fX&)
-        dY! = fade!(tY - fY&)
         fX1& = fX& + 1
         fY1& = fY& + 1
         n00! = perm2(fX&, fY&, M)
-        n10! = perm2(fX1&, fY&, M)
         n01! = perm2(fX&, fY1&, M)
-        n11! = perm2(fX1&, fY1&, M)
-        i1! = n00! + (n10! - n00!) * dX!
-        i2! = n01! + (n11! - n01!) * dX!
-        total = total + amplitude * (i1! + (i2! - i1!) * dY!)
+        i1! = n00! + (perm2(fX1&, fY&, M) - n00!) * dX!
+        total = total + amplitude * (i1! + (n01! + (perm2(fX1&, fY1&, M) - n01!) * dX! - i1!) * fade!(tY - fY&))
         maxAmplitude = maxAmplitude + amplitude
         amplitude = amplitude / 2
         scale = scale / 2
@@ -44,6 +41,7 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
     Static As Double amplitude, total, maxAmplitude, scale
     Static As Single tX, tY, tZ
     Static As _Byte i
+    Static fX&, fY&, fZ&, fX1&, fY1&, fZ1&, dX!, dY!, n000!, n010!, n001!, n011!, i01!, i11!, n1!
     amplitude = 1: total = 0: maxAmplitude = 0: scale = S
     For i = 0 To O
         tX = X / scale
@@ -54,25 +52,17 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
         fZ& = Int(tZ)
         dX! = fade!(tX - fX&)
         dY! = fade!(tY - fY&)
-        dZ! = fade!(tZ - fZ&)
         fX1& = fX& + 1
         fY1& = fY& + 1
         fZ1& = fZ& + 1
         n000! = perm3(fX&, fY&, fZ&, M)
-        n100! = perm3(fX1&, fY&, fZ&, M)
         n010! = perm3(fX&, fY1&, fZ&, M)
-        n110! = perm3(fX1&, fY1&, fZ&, M)
         n001! = perm3(fX&, fY&, fZ1&, M)
-        n101! = perm3(fX1&, fY&, fZ1&, M)
         n011! = perm3(fX&, fY1&, fZ1&, M)
-        n111! = perm3(fX1&, fY1&, fZ1&, M)
-        i01! = n000! + (n100! - n000!) * dX!
-        i02! = n010! + (n110! - n010!) * dX!
-        i11! = n001! + (n101! - n001!) * dX!
-        i12! = n011! + (n111! - n011!) * dX!
-        n1! = i01! + (i02! - i01!) * dY!
-        n2! = i11! + (i12! - i11!) * dY!
-        total = total + amplitude * (n1! + (n2! - n1!) * dZ!)
+        i01! = n000! + (perm3(fX1&, fY&, fZ&, M) - n000!) * dX!
+        i11! = n001! + (perm3(fX1&, fY&, fZ1&, M) - n001!) * dX!
+        n1! = i01! + (n010! + (perm3(fX1&, fY1&, fZ&, M) - n010!) * dX! - i01!) * dY!
+        total = total + amplitude * (n1! + (i11! + (n011! + (perm3(fX1&, fY1&, fZ1&, M) - n011!) * dX! - i11!) * dY! - n1!) * fade!(tZ - fZ&))
         maxAmplitude = maxAmplitude + amplitude
         amplitude = amplitude / 2
         scale = scale / 2
