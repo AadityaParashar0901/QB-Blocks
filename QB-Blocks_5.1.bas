@@ -262,10 +262,12 @@ Sub SetSkyColor (Colour&) Static
     SkyColorGreen! = SkyColorGreen~%% / 255
     SkyColorBlue! = SkyColorBlue~%% / 255
 End Sub
+
 Sub UpdateRenderDistance (__NewRenderDistance&)
     RenderDistance = Clamp(1, __NewRenderDistance&, MaxRenderDistance)
     RebuildChunkDataLoadQueue
 End Sub
+
 Sub BuildCloudsStarsSunMoon Static
     Static CloudsImage As Long
     Static __X, __Z, __P&, __I%
@@ -285,14 +287,8 @@ Sub BuildCloudsStarsSunMoon Static
                     Case 4: If GetColorAtPosition&(CloudsImage, __X, __Z + 1) Then _Continue
                     Case 5: If GetColorAtPosition&(CloudsImage, __X, __Z - 1) Then _Continue
                 End Select
-                CloudVertices(TotalClouds).X = (__X - hW) * 16 + _SHL(CubeVertices(__I%).X, 4)
-                CloudVertices(TotalClouds).Y = CloudsHeight + _SHL(CubeVertices(__I%).Y, 2)
-
-                CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _SHL(CubeVertices(__I%).Z, 4)
-                CloudColors(TotalClouds).X = 255
-                CloudColors(TotalClouds).Y = 255
-                CloudColors(TotalClouds).Z = 255
-                CloudColors(TotalClouds).W = 191
+                CloudVertices(TotalClouds).X = (__X - hW) * 16 + _SHL(CubeVertices(__I%).X, 4): CloudVertices(TotalClouds).Y = CloudsHeight + _SHL(CubeVertices(__I%).Y, 2): CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _SHL(CubeVertices(__I%).Z, 4)
+                CloudColors(TotalClouds).X = 255: CloudColors(TotalClouds).Y = 255: CloudColors(TotalClouds).Z = 255: CloudColors(TotalClouds).W = 191 ' _RGBA(255, 255, 255, 191)
                 TotalClouds = TotalClouds + 1
             Next __I%
     Next __Z, __X
@@ -318,7 +314,7 @@ Sub BuildCloudsStarsSunMoon Static
         MoonColors(__I%).X = 223: MoonColors(__I%).Y = 223: MoonColors(__I%).Z = 255
     Next __I%
 End Sub
-Sub ShowCloudsStarsSunMoon Static
+Sub DrawStarsSunMoon Static
     Static As Single CloudsTranslateX
     _glPushMatrix
 
@@ -344,56 +340,57 @@ Sub ShowCloudsStarsSunMoon Static
 
     _glRotatef -GameTime / 4, 1, 0, 0
     _glTranslatef -Camera.Position.X, -Camera.Position.Y, -Camera.Position.Z
+    _glDisableClientState _GL_COLOR_ARRAY
+    _glDisableClientState _GL_VERTEX_ARRAY
+    _glPopMatrix
 
+    If GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY Then GameTime = ClampCycle(0, GameTime + 1 / GFPS - (_KeyDown(84) Or _KeyDown(116)), 1439)
+End Sub
+Sub DrawClouds Static
     '    Draw Clouds
     _glTranslatef CloudsTranslateX, 0, 0
-    _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
-    _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
-    _glDrawArrays _GL_QUADS, 0, TotalClouds
+    _glEnableClientState _GL_VERTEX_ARRAY
+    _glEnableClientState _GL_COLOR_ARRAY
+    If Camera.Position.Y >= 256 Then
+        _glPushMatrix
+        For X = -1 To 1
+            For Z = -1 To 1
+                _glTranslatef X * 4096, 0, Z * 4096
+                _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
+                _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
+                _glDrawArrays _GL_QUADS, 0, TotalClouds
+                _glTranslatef -X * 4096, 0, -Z * 4096
+        Next Z, X
+        _glPopMatrix
+    Else
+        _glVertexPointer 3, _GL_INT, 0, _Offset(CloudVertices(0))
+        _glColorPointer 4, _GL_UNSIGNED_BYTE, 0, _Offset(CloudColors(0))
+        _glDrawArrays _GL_QUADS, 0, TotalClouds
+    End If
     _glTranslatef -CloudsTranslateX, 0, 0
     _glDisableClientState _GL_COLOR_ARRAY
     _glDisableClientState _GL_VERTEX_ARRAY
     '    Simulate Clouds
     CloudsTranslateX = ClampCycle(0, CloudsTranslateX + 0.1, 3.9)
-    __MaxX = (Camera.Position.X + 2048) \ 4
-    __MinX = (Camera.Position.X - 2048) \ 4
-    __MaxZ = (Camera.Position.Z + 2048) \ 4
-    __MinZ = (Camera.Position.Z - 2048) \ 4
+    __MaxX = (Camera.Position.X + 2048) \ 4: __MinX = (Camera.Position.X - 2048) \ 4
+    __MaxZ = (Camera.Position.Z + 2048) \ 4: __MinZ = (Camera.Position.Z - 2048) \ 4
     For I = 0 To TotalClouds - 1 Step 4
         If CloudVertices(I).X \ 4 > __MaxX Then
-            CloudVertices(I).X = CloudVertices(I).X - 4096
-            CloudVertices(I + 1).X = CloudVertices(I + 1).X - 4096
-            CloudVertices(I + 2).X = CloudVertices(I + 2).X - 4096
-            CloudVertices(I + 3).X = CloudVertices(I + 3).X - 4096
+            CloudVertices(I).X = CloudVertices(I).X - 4096: CloudVertices(I + 1).X = CloudVertices(I + 1).X - 4096: CloudVertices(I + 2).X = CloudVertices(I + 2).X - 4096: CloudVertices(I + 3).X = CloudVertices(I + 3).X - 4096
         ElseIf CloudVertices(I).X \ 4 < __MinX Then
-            CloudVertices(I).X = CloudVertices(I).X + 4096
-            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4096
-            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4096
-            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4096
+            CloudVertices(I).X = CloudVertices(I).X + 4096: CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4096: CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4096: CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4096
         End If
         If CloudsTranslateX = 0 Then
-            CloudVertices(I).X = CloudVertices(I).X + 4
-            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4
-            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4
-            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4
+            CloudVertices(I).X = CloudVertices(I).X + 4: CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4: CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4: CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4
         End If
         If CloudVertices(I).Z \ 4 > __MaxZ Then
-            CloudVertices(I).Z = CloudVertices(I).Z - 4096
-            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z - 4096
-            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z - 4096
-            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z - 4096
+            CloudVertices(I).Z = CloudVertices(I).Z - 4096: CloudVertices(I + 1).Z = CloudVertices(I + 1).Z - 4096: CloudVertices(I + 2).Z = CloudVertices(I + 2).Z - 4096: CloudVertices(I + 3).Z = CloudVertices(I + 3).Z - 4096
         ElseIf CloudVertices(I).Z \ 4 < __MinZ Then
-            CloudVertices(I).Z = CloudVertices(I).Z + 4096
-            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z + 4096
-            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z + 4096
-            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
+            CloudVertices(I).Z = CloudVertices(I).Z + 4096: CloudVertices(I + 1).Z = CloudVertices(I + 1).Z + 4096: CloudVertices(I + 2).Z = CloudVertices(I + 2).Z + 4096: CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
         End If
     Next I
-
-    _glPopMatrix
-
-    If GL_CURRENT_STATE = CONST_GL_STATE_GAMEPLAY Then GameTime = ClampCycle(0, GameTime + 1 / GFPS - (_KeyDown(84) Or _KeyDown(116)), 1439)
 End Sub
+
 Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
     Static As _Unsigned Long tmpChunksVisible, tmpQuadsVisible: tmpChunksVisible = 0: tmpQuadsVisible = 0
@@ -417,11 +414,12 @@ Sub _GL Static
             If _KeyDown(65) Or _KeyDown(97) Then MoveEntity Player, Player.Angle.X - 180, Player.Speed / GFPS
             If _KeyDown(68) Or _KeyDown(100) Then MoveEntity Player, Player.Angle.X, Player.Speed / GFPS
             Zoom = (_KeyDown(67) Or _KeyDown(99)) And 1
-            If _KeyDown(32) Then Player.Position.Y = Player.Position.Y + Player.Speed / GFPS
-            If _KeyDown(100304) Then Player.Position.Y = Player.Position.Y - Player.Speed / GFPS
+            If _KeyDown(32) Then Player.Position.Y = Player.Position.Y + 4 * Player.Speed / GFPS
+            If _KeyDown(100304) Then Player.Position.Y = Player.Position.Y - 4 * Player.Speed / GFPS
             If _KeyDown(100306) Then Player.Speed = 64 Else Player.Speed = 4
             Select Case _KeyHit
                 Case 27: GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU
+                Case 71, 103: Fog = Not Fog
                 Case 15616: GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
                     'Case 70, 102: UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1 ' Update Render Distance with F, Shift + F, has bugs
             End Select
@@ -479,16 +477,17 @@ Sub _GL Static
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
 
-            ShowCloudsStarsSunMoon
+            DrawStarsSunMoon
 
             If Fog Then
                 _glEnable _GL_FOG
                 _glFogi _GL_FOG_MODE, _GL_LINEAR
-                _glFogf _GL_FOG_END, Max(Y, 256)
+                _glFogf _GL_FOG_END, Max(Y, 1024)
                 _glFogf _GL_FOG_START, 16
-                _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
-                _glFogf _GL_FOG_DENSITY, 10
+                _glFogfv _GL_FOG_COLOR, glVec4(1, 1, 1, 1)
+                _glFogf _GL_FOG_DENSITY, 255
             End If
+            DrawClouds
 
             _glEnable _GL_TEXTURE_2D
             _glBindTexture _GL_TEXTURE_2D, GL_TextureAtlas_Handle
@@ -559,7 +558,7 @@ Sub _GL Static
                 PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
                 PrintString 0, 176, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 If Debug_Menu_Show_Terrain_Info Then
-                    PrintString 0, 96, "Terrain", Green
+                    PrintString 0, 96, "Terrain", Pink
                     Biome! = getBiome(Player.Position.X, Player.Position.Z)
                     Biome1~%% = Int(Biome!)
                     Biome2~%% = Biome1~%% + 1
@@ -567,10 +566,10 @@ Sub _GL Static
                     GroundHeightBias! = interpolate(BiomeHeightBias(Biome1~%%), BiomeHeightBias(Biome2~%%), dBiome!)
                     ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
                     BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
-                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), Green
-                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), Green
-                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), Green
-                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), Green
+                    PrintString 16, 112, "Biome: " + ListMapGet(BiomesList, Biome2~%%, "name"), Pink
+                    PrintString 16, 128, "Ground Height Bias:" + Str$(GroundHeightBias!), Pink
+                    PrintString 16, 144, "Excited Height Bias:" + Str$(ExcitedHeightBias!), Pink
+                    PrintString 16, 160, "Biome Smoothness:" + Str$(BiomeSmoothness!), Pink
                 End If
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
