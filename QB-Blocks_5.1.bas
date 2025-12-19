@@ -104,6 +104,8 @@ Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Data, Render Data Load Queue
 Dim Shared As String ChunkDataLoadQueue, RenderDataLoadQueue
 Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
+Const ChunkDataGraphTimerConstant = 4
+Const RenderDataGraphTimerConstant = 4
 '--------------
 
 '--- Player ---
@@ -555,17 +557,17 @@ Sub _GL Static
             PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z) + ", Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
             PrintString 0, 32, "Game Time:" + Str$(GameTime), White
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
-                PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Visible:" + Str$(ChunksVisible), LightBlue
+                PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Chunks Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
-                Line (16, _Height - 68)-(79, _Height - 5), _RGB32(0, 127), BF
-                For I = 1 To 64
-                    T% = Max(_Height - 70, _Height - 5 - CVL(Mid$(ChunkDataGraphTimer, _SHL(I, 2) - 3, 4)))
-                    Line (I + 15, _Height - 5)-(I + 15, T%), _RGB32(255, 0, 0)
-                    T% = Max(_Height - 70, _Height - 5 - CVL(Mid$(RenderDataGraphTimer, _SHL(I, 2) - 3, 4)))
-                    Line (I + 15, _Height - 5)-(I + 15, T%), _RGB32(0, 255, 0)
+                Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
+                For I = 1 To 256
+                    Line (I + 15, _Height - 5)-(I + 15, Max(_Height - 70, _Height - 5 - Asc(ChunkDataGraphTimer, I))), _RGB32(0, 255, 0, 127), BF
+                    Line (I + 15, _Height - 5)-(I + 15, Max(_Height - 70, _Height - 5 - Asc(RenderDataGraphTimer, I))), _RGB32(255, 0, 0, 127), BF
                 Next I
+                PrintString 16, _Height - 64, "Chunk:" + Str$(ChunkDataGraphTimerConstant), _RGB32(0, 255, 0)
+                PrintString 16, _Height - 48, "Render:" + Str$(RenderDataGraphTimerConstant), _RGB32(255, 0, 0)
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display

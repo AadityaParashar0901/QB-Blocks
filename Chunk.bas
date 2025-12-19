@@ -75,7 +75,7 @@ Sub LoadNextChunk () Static
     __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
     ST# = Timer(0.001)
     LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
-    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 4) + MKL$((Timer(0.001) - ST#) * 1000)
+    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
 End Sub
 Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z
@@ -199,7 +199,7 @@ Sub RenderNextChunk () Static
     __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
     ST# = Timer(0.01)
     RenderChunk CVL(__Chunk$)
-    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 4) + MKL$((Timer(0.01) - ST#) * 1000)
+    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
 End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As Long X, Y, Z
