@@ -371,7 +371,7 @@ Sub DrawClouds Static
     _glDisableClientState _GL_COLOR_ARRAY
     _glDisableClientState _GL_VERTEX_ARRAY
     '    Simulate Clouds
-    CloudsTranslateX = ClampCycle(0, CloudsTranslateX + 0.1, 3.9)
+    CloudsTranslateX = ClampCycle(0, CloudsTranslateX + 0.05, 3.95)
     __MaxX = (Camera.Position.X + 2048) \ 4: __MinX = (Camera.Position.X - 2048) \ 4
     __MaxZ = (Camera.Position.Z + 2048) \ 4: __MinZ = (Camera.Position.Z - 2048) \ 4
     For I = 0 To TotalClouds - 1 Step 4

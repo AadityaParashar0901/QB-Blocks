@@ -83,7 +83,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Single Height, dHeight
     Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
-    Static As String * 1296 HeightMap ' Store the heightmap for tree generation
+    Static As String * 1296 HeightMap ' Store the heightmap
+    Static As String * 384 BiomeMap ' and biomemap
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
     End If
@@ -106,15 +107,20 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
         For Z = 0 To 17
             Biome = getBiome!(PX + X, PZ + Z)
             BiomeSelector = Int(Biome)
+            Asc(BiomeMap, X * 18 + Z + 1) = BiomeSelector
             Height = getHeight(PX + X, PZ + Z, Biome)
             Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4) = MKS$(Height)
-            Chunks(ChunkID).MaximumHeight = Clamp(Height + 1, Chunks(ChunkID).MaximumHeight, 256)
-            Chunks(ChunkID).MinimumHeight = Clamp(1, Chunks(ChunkID).MinimumHeight, Height - 1)
+            Chunks(ChunkID).MaximumHeight = Max(Height + 1, Chunks(ChunkID).MaximumHeight)
+            Chunks(ChunkID).MinimumHeight = Min(Chunks(ChunkID).MinimumHeight, Height - 1)
     Next Z, X
+    Chunks(ChunkID).MaximumHeight = Clamp(1, Chunks(ChunkID).MaximumHeight, 256)
+    Chunks(ChunkID).MinimumHeight = Clamp(1, Chunks(ChunkID).MinimumHeight, 256)
     For X = 0 To 17
         For Z = 0 To 17
             Height = CVS(Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4))
             dHeight = Height - Int(Height)
+            Height = Int(Height)
+            BiomeSelector = Asc(BiomeMap, X * 18 + Z + 1)
             For Y = Chunks(ChunkID).MinimumHeight - 1 To Chunks(ChunkID).MaximumHeight + 1
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, BiomeSelector)
@@ -141,8 +147,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Z = TreeZ
     For T = 1 To 1
         If InRange(2, X, 15) = 0 Or InRange(2, Z, 15) = 0 Then _Continue
-        Biome = getBiome!(PX + X, PZ + Z)
-        Height = Asc(HeightMap, X * 18 + Z + 1)
+        Biome = Asc(BiomeMap, X * 18 + Z + 1)
+        Height = CVS(Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4))
         If Height <= WaterLevel Then _Continue
         '       If InRange(0.75, fractal2(PX + X, PZ + Z, 16, 0, 5), 0.75) = 0 And InRange(0.75, fractal2(PX + X, PZ + Z, 32, 0, 6), 0.75) = 0 Then _Continue
         TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
@@ -151,7 +157,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
         TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
         TreeHeight = fractal2(PX + X, PZ + Z, 64, 0, 7) * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
         S = Height + 1
-        E = Height + TreeHeight
+        E = Min(Height + TreeHeight, 256)
+        Chunks(ChunkID).MaximumHeight = Max(E, Chunks(ChunkID).MaximumHeight)
         For Y = S To E - 1
             ChunksData(X, Y, Z, ChunkID).Block = TreeLog
         Next Y
