@@ -176,14 +176,14 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
         For X = 0 To 17
             For Z = 0 To 17
                 __TOGGLE` = 0
-                For Y = 257 To 0 Step -1
+                For Y = Chunks(ChunkID).MaximumHeight + 1 To Chunks(ChunkID).MinimumHeight - 1 Step -1
                     __TOGGLE` = (isTransparent(ChunksData(X, Y, Z, ChunkID).Block) = 0) Or __TOGGLE`
                     ChunksData(X, Y, Z, ChunkID).Light = 15 And (__TOGGLE` = 0 Or (X = 0 Or X = 17 Or Z = 0 Or Z = 17)) Or (12 And MinimalLighting <> 0)
         Next Y, Z, X
     End If
     If SkipLighting = 0 And MinimalLighting = 0 Then ' need to implement fast Flood Fill Algorithm
         For I = 15 To 1 Step -1
-            For X = 1 To 16: For Z = 1 To 16: For Y = 1 To 256
+            For X = 1 To 16: For Z = 1 To 16: For Y = Chunks(ChunkID).MinimumHeight - 1 To Chunks(ChunkID).MaximumHeight + 1
                         If ChunksData(X, Y, Z, ChunkID).Light Or ChunksData(X, Y, Z, ChunkID).Block Then _Continue
                         If ChunksData(X + 1, Y, Z, ChunkID).Light = I Or ChunksData(X - 1, Y, Z, ChunkID).Light = I Or ChunksData(X, Y + 1, Z, ChunkID).Light = I Or ChunksData(X, Y - 1, Z, ChunkID).Light = I Or ChunksData(X, Y, Z + 1, ChunkID).Light = I Or ChunksData(X, Y, Z - 1, ChunkID).Light = I Then
                             ChunksData(X, Y, Z, ChunkID).Light = I - 1
