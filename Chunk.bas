@@ -89,6 +89,13 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
         Block_Water = getBlockID("water")
     End If
     ChunkID = getChunkID(CX, CZ)
+    If Chunks(ChunkID).X = CX And Chunks(ChunkID).Z = CZ Then
+        Select Case Chunks(ChunkID).DataLoaded
+            Case 255: Exit Sub
+            Case 253: If Instr(RenderDataLoadQueue, MKL$(ChunkID)) = 0 Then RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
+                Exit Sub
+        End Select
+    End If
     PX = CX * 16
     PZ = CZ * 16
     Chunks(ChunkID).TX = PX
@@ -111,7 +118,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
             Height = getHeight(PX + X, PZ + Z, Biome)
             Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4) = MKS$(Height)
             Chunks(ChunkID).MaximumHeight = Max(Height + 1, Chunks(ChunkID).MaximumHeight)
-            Chunks(ChunkID).MinimumHeight = Min(Chunks(ChunkID).MinimumHeight, Height - 1)
+            Chunks(ChunkID).MinimumHeight = Min(Chunks(ChunkID).MinimumHeight, Height - 2)
     Next Z, X
     Chunks(ChunkID).MaximumHeight = Clamp(1, Chunks(ChunkID).MaximumHeight, 256)
     Chunks(ChunkID).MinimumHeight = Clamp(1, Chunks(ChunkID).MinimumHeight, 256)
@@ -208,6 +215,7 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As _Unsigned _Byte Block, Visibility, Face, Light
     Static As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
     If Chunks(ChunkID).DataLoaded < 253 Then Exit Sub
+    If Chunks(ChunkID).DataLoaded = 255 Then Exit Sub
     J = ChunkID - 1
     VertexID = ChunkDataSize * J
     Chunks(ChunkID).VerticesCount = 0

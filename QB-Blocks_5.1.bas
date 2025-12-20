@@ -19,7 +19,7 @@ End Type
 '------------
 
 '--- Game Build Settings ---
-Const MaxRenderDistance = 32
+Const MaxRenderDistance = 16
 Const WaterLevel = 64
 Const MinimalLighting = -1 ' Fast Lighting
 Const SkipLighting = -1 ' Disables Lighting
@@ -46,7 +46,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
-RenderDistance = MaxRenderDistance
+RenderDistance = 8
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -438,7 +438,7 @@ Sub _GL Static
             '-------------------------
             While _MouseInput
                 _MouseHide
-                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 360)
+                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 359.875)
                 Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
                 _MouseMove _Width / 2, _Height / 2
             Wend
