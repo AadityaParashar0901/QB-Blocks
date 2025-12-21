@@ -106,6 +106,7 @@ Dim Shared As String ChunkDataLoadQueue, RenderDataLoadQueue
 Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
 Const ChunkDataGraphTimerConstant = 4
 Const RenderDataGraphTimerConstant = 4
+Dim Shared As _Byte NeedToRebuildChunkDataLoadQueue
 '--------------
 
 '--- Player ---
@@ -219,7 +220,10 @@ Do
             If DefaultFont > 0 Then _Font DefaultFont
         End If
     End If
-
+    If NeedToRebuildChunkDataLoadQueue Then
+        NeedToRebuildChunkDataLoadQueue = 0
+        RebuildChunkDataLoadQueue
+    End If
     If Len(ChunkDataLoadQueue) Then
         LoadNextChunk
     End If
@@ -434,7 +438,7 @@ Sub _GL Static
             PlayerInChunk.X = Int(Camera.Position.X - _SHL(PlayerChunkX, 4))
             PlayerInChunk.Y = Int(Camera.Position.Y - _SHL(PlayerChunkY, 8))
             PlayerInChunk.Z = Int(Camera.Position.Z - _SHL(PlayerChunkZ, 4))
-            If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then RebuildChunkDataLoadQueue
+            If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then NeedToRebuildChunkDataLoadQueue = -1
             '-------------------------
             While _MouseInput
                 _MouseHide
@@ -484,10 +488,10 @@ Sub _GL Static
             If Fog Then
                 _glEnable _GL_FOG
                 _glFogi _GL_FOG_MODE, _GL_LINEAR
-                _glFogf _GL_FOG_END, Max(Y, 1024)
+                _glFogf _GL_FOG_END, Max(Y, 512)
                 _glFogf _GL_FOG_START, 16
-                _glFogfv _GL_FOG_COLOR, glVec4(1, 1, 1, 1)
-                _glFogf _GL_FOG_DENSITY, 255
+                _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
+                _glFogf _GL_FOG_DENSITY, Clamp(0, 5 - Y / 200, 5)
             End If
             If Camera.Position.Y < CloudsHeight Then DrawClouds
 

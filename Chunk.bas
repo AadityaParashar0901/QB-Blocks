@@ -18,22 +18,26 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
             Select Case I And 1
                 Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
                         ChunkID = getChunkID(X, Z)
-                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded < 253 Then
+                        IsDifferentChunk = Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z
+                        If IsDifferentChunk Or Chunks(ChunkID).DataLoaded < 253 Then
                             ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
                                 TotalChunksLoaded = TotalChunksLoaded - 1
                             End If
+                            If IsDifferentChunk Then WipeChunk ChunkID
                         End If
                     Next X
                 Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
                         ChunkID = getChunkID(X, Z)
-                        If Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z Or Chunks(ChunkID).DataLoaded < 253 Then
+                        IsDifferentChunk = Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z
+                        If IsDifferentChunk Or Chunks(ChunkID).DataLoaded < 253 Then
                             ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
                                 TotalChunksLoaded = TotalChunksLoaded - 1
                             End If
+                            If IsDifferentChunk Then WipeChunk ChunkID
                         End If
                     Next Z
             End Select
@@ -266,4 +270,10 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     TotalChunksLoaded = TotalChunksLoaded + 1
     'File_Log "Render Data Loaded(" + _Trim$(Str$(Chunks(ChunkID).X)) + "," + _Trim$(Str$(Chunks(ChunkID).Z)) + "):" + Str$(Chunks(ChunkID).VerticesCount) + Str$(Chunks(ChunkID).TransparentVerticesCount)
     Chunks(ChunkID).DataLoaded = 255
+End Sub
+Sub WipeChunk (ChunkID As _Unsigned Long) Static
+    Static M As _MEM
+    M = _Mem(_Offset(ChunksData(0, 0, 0, ChunkID)), 167184)
+    _MemFill M, M.OFFSET, M.SIZE, 0 As _BYTE
+    _MemFree M
 End Sub
