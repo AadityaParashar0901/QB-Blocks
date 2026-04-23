@@ -18,10 +18,10 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
     Static As Single tX, tY
     Static As _Byte i
     Static fX&, fY&, fX1&, fY1&, dX!, n00!, n01!, i1!
-    amplitude = 1: total = 0: maxAmplitude = 0: scale = S
+    amplitude = 1: total = 0: maxAmplitude = 0: scale = 1 / S
     For i = 0 To O
-        tX = X / scale
-        tY = Y / scale
+        tX = X * scale
+        tY = Y * scale
         fX& = Int(tX)
         fY& = Int(tY)
         dX! = fade!(tX - fX&)
@@ -33,7 +33,7 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
         total = total + amplitude * (i1! + (n01! + (perm2(fX1&, fY1&, M) - n01!) * dX! - i1!) * fade!(tY - fY&))
         maxAmplitude = maxAmplitude + amplitude
         amplitude = amplitude / 2
-        scale = scale / 2
+        scale = scale * 2
     Next i
     fractal2! = total / maxAmplitude
 End Function
@@ -42,11 +42,11 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
     Static As Single tX, tY, tZ
     Static As _Byte i
     Static fX&, fY&, fZ&, fX1&, fY1&, fZ1&, dX!, dY!, n000!, n010!, n001!, n011!, i01!, i11!, n1!
-    amplitude = 1: total = 0: maxAmplitude = 0: scale = S
+    amplitude = 1: total = 0: maxAmplitude = 0: scale = 1 / S
     For i = 0 To O
-        tX = X / scale
-        tY = Y / scale
-        tZ = Z / scale
+        tX = X * scale
+        tY = Y * scale
+        tZ = Z * scale
         fX& = Int(tX)
         fY& = Int(tY)
         fZ& = Int(tZ)
@@ -65,7 +65,7 @@ Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _
         total = total + amplitude * (n1! + (i11! + (n011! + (perm3(fX1&, fY1&, fZ1&, M) - n011!) * dX! - i11!) * dY! - n1!) * fade!(tZ - fZ&))
         maxAmplitude = maxAmplitude + amplitude
         amplitude = amplitude / 2
-        scale = scale / 2
+        scale = scale * 2
     Next i
     fractal3! = total / maxAmplitude
 End Function
