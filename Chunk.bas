@@ -277,3 +277,20 @@ Sub WipeChunk (ChunkID As _Unsigned Long) Static
     _MemFill M, M.OFFSET, M.SIZE, 0 As _BYTE
     _MemFree M
 End Sub
+Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkID As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static ' used to calculate block lighting
+    'Adapted from QB-Blocks_4
+    $Checking:Off
+    Dim As _Byte dX, dY, dZ
+    Dim As _Byte side1, side2, corner
+    Dim As _Byte total
+    dX = _ShL(CubeVertices(vertexIndex).X, 1) - 1
+    dY = _ShL(CubeVertices(vertexIndex).Y, 1) - 1
+    dZ = _ShL(CubeVertices(vertexIndex).Z, 1) - 1
+    corner = Sgn(ChunksData(X + dX, Y + dY, Z + dZ, ChunkID).Block)
+    side1 = Sgn(ChunksData(X + dX, Y + dY, Z, ChunkID).Block)
+    side2 = Sgn(ChunksData(X, Y + dY, Z + dZ, ChunkID).Block)
+    total = side1 + side2 + corner + CurrentLight
+    total = total + (total - 15) * (total > 15)
+    $Checking:On
+    AmbientOcclusion = 255 - 15 * total
+End Function

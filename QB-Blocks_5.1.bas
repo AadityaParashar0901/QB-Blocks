@@ -174,7 +174,7 @@ Randomize Timer
 If _CommandCount Then ' load seed
     Seed = Val("&H" + Command$)
 Else ' or generate seed
-    Seed = _SHL(Rnd * 256, 24) Or _SHL(Rnd * 256, 16) Or _SHL(Rnd * 256, 8) Or _SHL(Rnd * 256, 0)
+    Seed = _ShL(Rnd * 256, 24) Or _ShL(Rnd * 256, 16) Or _ShL(Rnd * 256, 8) Or _ShL(Rnd * 256, 0)
 End If
 Write_Log "Seed: " + Hex$(Seed) + "h"
 '-------------
@@ -281,19 +281,19 @@ Sub BuildCloudsStarsSunMoon Static
     ' Generate Clouds
     CloudsImage = _LoadImage("assets/environment/clouds.png", 32)
     TotalClouds = 0
-    hW = _SHR(_Width(CloudsImage), 1)
-    hH = _SHR(_Height(CloudsImage), 1)
+    hW = _ShR(_Width(CloudsImage), 1)
+    hH = _ShR(_Height(CloudsImage), 1)
     For __X = 0 To _Width(CloudsImage) - 1
         For __Z = 0 To _Height(CloudsImage) - 1
             If GetColorAtPosition&(CloudsImage, __X, __Z) = 0 Then _Continue
             For __I% = 0 To 23
-                Select Case _SHR(__I%, 2)
+                Select Case _ShR(__I%, 2)
                     Case 0: If GetColorAtPosition&(CloudsImage, __X + 1, __Z) Then _Continue
                     Case 1: If GetColorAtPosition&(CloudsImage, __X - 1, __Z) Then _Continue
                     Case 4: If GetColorAtPosition&(CloudsImage, __X, __Z + 1) Then _Continue
                     Case 5: If GetColorAtPosition&(CloudsImage, __X, __Z - 1) Then _Continue
                 End Select
-                CloudVertices(TotalClouds).X = (__X - hW) * 16 + _SHL(CubeVertices(__I%).X, 4): CloudVertices(TotalClouds).Y = CloudsHeight + _SHL(CubeVertices(__I%).Y, 2): CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _SHL(CubeVertices(__I%).Z, 4)
+                CloudVertices(TotalClouds).X = (__X - hW) * 16 + _ShL(CubeVertices(__I%).X, 4): CloudVertices(TotalClouds).Y = CloudsHeight + _ShL(CubeVertices(__I%).Y, 2): CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _ShL(CubeVertices(__I%).Z, 4)
                 CloudColors(TotalClouds).X = 255: CloudColors(TotalClouds).Y = 255: CloudColors(TotalClouds).Z = 255: CloudColors(TotalClouds).W = 191 ' _RGBA(255, 255, 255, 191)
                 TotalClouds = TotalClouds + 1
             Next __I%
@@ -320,6 +320,7 @@ Sub BuildCloudsStarsSunMoon Static
         MoonColors(__I%).X = 223: MoonColors(__I%).Y = 223: MoonColors(__I%).Z = 255
     Next __I%
 End Sub
+'--- Start of GL Code ---
 Sub DrawStarsSunMoon Static
     Static As Single CloudsTranslateX
     _glPushMatrix
@@ -382,17 +383,32 @@ Sub DrawClouds Static
     __MaxZ = (Camera.Position.Z + 2048) \ 4: __MinZ = (Camera.Position.Z - 2048) \ 4
     For I = 0 To TotalClouds - 1 Step 4
         If CloudVertices(I).X \ 4 > __MaxX Then
-            CloudVertices(I).X = CloudVertices(I).X - 4096: CloudVertices(I + 1).X = CloudVertices(I + 1).X - 4096: CloudVertices(I + 2).X = CloudVertices(I + 2).X - 4096: CloudVertices(I + 3).X = CloudVertices(I + 3).X - 4096
+            CloudVertices(I).X = CloudVertices(I).X - 4096
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X - 4096
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X - 4096
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X - 4096
         ElseIf CloudVertices(I).X \ 4 < __MinX Then
-            CloudVertices(I).X = CloudVertices(I).X + 4096: CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4096: CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4096: CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4096
+            CloudVertices(I).X = CloudVertices(I).X + 4096
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4096
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4096
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4096
         End If
         If CloudsTranslateX = 0 Then
-            CloudVertices(I).X = CloudVertices(I).X + 4: CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4: CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4: CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4
+            CloudVertices(I).X = CloudVertices(I).X + 4
+            CloudVertices(I + 1).X = CloudVertices(I + 1).X + 4
+            CloudVertices(I + 2).X = CloudVertices(I + 2).X + 4
+            CloudVertices(I + 3).X = CloudVertices(I + 3).X + 4
         End If
         If CloudVertices(I).Z \ 4 > __MaxZ Then
-            CloudVertices(I).Z = CloudVertices(I).Z - 4096: CloudVertices(I + 1).Z = CloudVertices(I + 1).Z - 4096: CloudVertices(I + 2).Z = CloudVertices(I + 2).Z - 4096: CloudVertices(I + 3).Z = CloudVertices(I + 3).Z - 4096
+            CloudVertices(I).Z = CloudVertices(I).Z - 4096
+            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z - 4096
+            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z - 4096
+            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z - 4096
         ElseIf CloudVertices(I).Z \ 4 < __MinZ Then
-            CloudVertices(I).Z = CloudVertices(I).Z + 4096: CloudVertices(I + 1).Z = CloudVertices(I + 1).Z + 4096: CloudVertices(I + 2).Z = CloudVertices(I + 2).Z + 4096: CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
+            CloudVertices(I).Z = CloudVertices(I).Z + 4096
+            CloudVertices(I + 1).Z = CloudVertices(I + 1).Z + 4096
+            CloudVertices(I + 2).Z = CloudVertices(I + 2).Z + 4096
+            CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
         End If
     Next I
 End Sub
@@ -414,7 +430,7 @@ Sub _GL Static
             End Select
         Case CONST_GL_STATE_GAMEPLAY
             SimulateCamera
-            '--- Movement ---
+            '--- Keyboard Movement ---
             If _KeyDown(87) Or _KeyDown(119) Then MoveEntity Player, Player.Angle.X - 90, Player.Speed / GFPS
             If _KeyDown(83) Or _KeyDown(115) Then MoveEntity Player, Player.Angle.X + 90, Player.Speed / GFPS
             If _KeyDown(65) Or _KeyDown(97) Then MoveEntity Player, Player.Angle.X - 180, Player.Speed / GFPS
@@ -424,28 +440,35 @@ Sub _GL Static
             If _KeyDown(100304) Then Player.Position.Y = Player.Position.Y - 4 * Player.Speed / GFPS
             If _KeyDown(100306) Then Player.Speed = 64 Else Player.Speed = 4
             Select Case _KeyHit
-                Case 27: GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU
-                Case 71, 103: Fog = Not Fog
-                Case 15616: GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
-                    'Case 70, 102: UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1 ' Update Render Distance with F, Shift + F, has bugs
+                Case 27 ' Esc
+                    GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU
+                Case 71, 103 ' G
+                    Fog = Not Fog
+                Case 15616 ' F3
+                    GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
+                Case 70, 102 'F
+                    ' - Update Render Distance with F, Shift + F, has bugs
+                    'UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1
             End Select
-            '----------------
+            '------------------------
             '--- Chunk Coordinates ---
             oldPlayerChunk = PlayerChunk
-            PlayerChunk.X = _SHR(Camera.Position.X, 4)
-            PlayerChunk.Y = _SHR(Camera.Position.Y, 8)
-            PlayerChunk.Z = _SHR(Camera.Position.Z, 4)
-            PlayerInChunk.X = Int(Camera.Position.X - _SHL(PlayerChunkX, 4))
-            PlayerInChunk.Y = Int(Camera.Position.Y - _SHL(PlayerChunkY, 8))
-            PlayerInChunk.Z = Int(Camera.Position.Z - _SHL(PlayerChunkZ, 4))
+            PlayerChunk.X = _ShR(Camera.Position.X, 4)
+            PlayerChunk.Y = _ShR(Camera.Position.Y, 8)
+            PlayerChunk.Z = _ShR(Camera.Position.Z, 4)
+            PlayerInChunk.X = Int(Camera.Position.X - _ShL(PlayerChunkX, 4))
+            PlayerInChunk.Y = Int(Camera.Position.Y - _ShL(PlayerChunkY, 8))
+            PlayerInChunk.Z = Int(Camera.Position.Z - _ShL(PlayerChunkZ, 4))
             If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then NeedToRebuildChunkDataLoadQueue = -1
             '-------------------------
+            '--- Mouse Movement ---
             While _MouseInput
                 _MouseHide
                 Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 359.875)
                 Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
                 _MouseMove _Width / 2, _Height / 2
             Wend
+            '----------------------
     End Select
     Select Case GL_CURRENT_STATE
         Case 0
@@ -502,6 +525,7 @@ Sub _GL Static
             _glEnableClientState _GL_COLOR_ARRAY
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
+            '--- Render Chunks' Opaque Render Data ---
             For I = 1 To MaxChunks ' Render Chunks which are loaded completely
                 If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize
@@ -512,8 +536,12 @@ Sub _GL Static
                 _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
                 _glDrawArrays _GL_QUADS, 0, Chunks(I).VerticesCount
                 _glPopMatrix
-                tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).VerticesCount, 2)
+                tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).VerticesCount, 2)
             Next I
+            '-----------------------------------------
+
+
+            '--- Render Chunks' Transparent Render Data ---
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
             _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0 ' Translate for water animation
             For I = 1 To MaxChunks ' Render Transparent Quads from Chunks
@@ -527,9 +555,10 @@ Sub _GL Static
                 _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
                 _glDrawArrays _GL_QUADS, 0, Chunks(I).TransparentVerticesCount
                 _glPopMatrix
-                tmpQuadsVisible = tmpQuadsVisible + _SHR(Chunks(I).TransparentVerticesCount, 2)
+                tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).TransparentVerticesCount, 2)
             Next I
             _glTranslatef 0, -0.15 + Sin(TransparentTranslateY) * 0.1, 0
+            '----------------------------------------------
             ChunksVisible = tmpChunksVisible
             QuadsVisible = tmpQuadsVisible
             _glDisableClientState _GL_COLOR_ARRAY
@@ -546,16 +575,19 @@ Sub _GL Static
             _glDisable _GL_DEPTH_TEST
             _glDisable _GL_BLEND
             _glFlush
+
         Case CONST_GL_STATE_FREE_ASSETS
             Write_Log "Freeing GL Textures"
             _glDeleteTextures 1, _Offset(GL_TextureAtlas_Handle)
             GL_CURRENT_STATE = 0
+
     End Select
     Cls , 0
     Select Case GL_EXTRA_STATE
         Case CONST_GL_STATE_SHOW_LOADING_MENU
             PrintString ScreenWidth / 2 - 8 * Len(LoadingMessage), ScreenHeight / 2 - 8, LoadingMessage, White
             _Display
+
         Case CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU
             PrintString 0, 0, "FPS (G/L):" + Str$(GFPS) + "," + Str$(LFPS), White
             PrintString 0, 16, "Player Position:" + Str$(Player.Position.X) + Str$(Player.Position.Y) + Str$(Player.Position.Z) + ", Player Angle:" + Str$(Player.Angle.X) + Str$(Player.Angle.Y), White
@@ -563,7 +595,7 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Chunks Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
-                PrintString 0, 80, "Queue Size:" + Str$(_SHR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_SHR(Len(RenderDataLoadQueue), 2)), LightBlue
+                PrintString 0, 80, "Queue Size:" + Str$(_ShR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_ShR(Len(RenderDataLoadQueue), 2)), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
                 For I = 1 To 256
@@ -575,6 +607,7 @@ Sub _GL Static
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_PAUSE_MENU Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
+
     End Select
     If GL_Chunk_Rendering And Len(RenderDataLoadQueue) Then
         RenderNextChunk
@@ -585,33 +618,19 @@ Function glVec4%& (X!, Y!, Z!, W!)
     VEC4(0) = X!: VEC4(1) = Y!: VEC4(2) = Z!: VEC4(3) = W!
     glVec4%& = _Offset(VEC4())
 End Function
+'--- End of GL Code ---
 '$Include:'Chunk.bas' 'Contains Code to load ChunkData and Render Chunks
-Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkID As _Unsigned Integer, CurrentLight As _Unsigned _Byte) Static ' used to calculate block lighting
-    'Adapted from QB-Blocks_4
-    $Checking:Off
-    Dim As _Byte dX, dY, dZ
-    Dim As _Byte side1, side2, corner
-    Dim As _Byte total
-    dX = _SHL(CubeVertices(vertexIndex).X, 1) - 1
-    dY = _SHL(CubeVertices(vertexIndex).Y, 1) - 1
-    dZ = _SHL(CubeVertices(vertexIndex).Z, 1) - 1
-    corner = Sgn(ChunksData(X + dX, Y + dY, Z + dZ, ChunkID).Block)
-    side1 = Sgn(ChunksData(X + dX, Y + dY, Z, ChunkID).Block)
-    side2 = Sgn(ChunksData(X, Y + dY, Z + dZ, ChunkID).Block)
-    total = side1 + side2 + corner + CurrentLight
-    total = total + (total - 15) * (total > 15)
-    $Checking:On
-    AmbientOcclusion = 255 - 15 * total
-End Function
+
+'--- Block Hash Table ---
 Function getHash~%% (T$) Static ' hash function for the blocks hash table
     Static As _Unsigned Long I
     B~%% = Asc(T$)
     For I = 2 To Len(T$) - 1
         B~%% = B~%% + Asc(T$, I)
         If I And 1 Then
-            B~%% = _SHL(B~%%, 1)
+            B~%% = _ShL(B~%%, 1)
         Else
-            B~%% = _SHR(B~%%, 1) Xor (B~%% And 1)
+            B~%% = _ShR(B~%%, 1) Xor (B~%% And 1)
         End If
     Next I
     getHash~%% = B~%% + Asc(T$, I)
@@ -628,13 +647,17 @@ Function getBlockID~% (BlockName$) Static ' returns the block id from the hash t
     If Search~% = 0 Then Write_Log "[getBlockID(" + BlockName$ + ")]: Error: Block not found!": Exit Function
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
+'------------------------
+
+'--- Terrain ---
 Function getHeight! (X As Long, Z As Long, Biome As Single) Static ' returns the height of a position, used by chunk loader, has bugs
     Static As Integer SX, SZ
     Static As Long PX, PZ
     Static Biome1~%%, Biome2~%%, dBiome!
     Static GroundHeightBias!, ExcitedHeightBias!, BiomeSmoothness!, GroundHeight!, ExcitedHeight!
     Static gH!, old_gH!
-    SX = _SHR(Seed, 16): SZ = Seed And 65535
+    Static As Single warpX, warpY
+    SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
     Biome1~%% = Int(Biome)
     Biome2~%% = Biome1~%% + 1
@@ -643,8 +666,10 @@ Function getHeight! (X As Long, Z As Long, Biome As Single) Static ' returns the
     ExcitedHeightBias! = interpolate(BiomeExcitedHeightBias(Biome1~%%), BiomeExcitedHeightBias(Biome2~%%), dBiome!)
     'BiomeSmoothness! = interpolate(BiomeSmoothness(Biome1~%%), BiomeSmoothness(Biome2~%%), dBiome!)
     'BiomeSmoothness! is not currently in use
-    GroundHeight! = fractal2(PX, PZ, 256, 0, 0) * GroundHeightBias!
-    ExcitedHeight! = fractal2(PX, PZ, 64, 3, 1) ' BiomeSmoothness!
+    warpX = fractal2(PX, PZ, 64, 0, 0) * 50
+    warpY = fractal2(PX + 100, PZ + 100, 64, 0, 0) * 50
+    GroundHeight! = fractal2(PX + warpX, PZ + warpY, 256, 0, 0) * GroundHeightBias!
+    ExcitedHeight! = fractal2(PX + warpX, PZ + warpY, 64, 3, 1) ' BiomeSmoothness!
     gH! = (GroundHeight! + ExcitedHeight! * ExcitedHeight! * ExcitedHeightBias!) / 2
     If gH! > 256 Then getHeight! = old_gH! Else getHeight! = gH! ' for bugs
     old_gH! = gH!
@@ -652,10 +677,15 @@ End Function
 Function getBiome! (X As Long, Z As Long) Static ' used to get the biome
     Static As Integer SX, SZ
     Static As Long PX, PZ
-    SX = _SHR(Seed, 16): SZ = Seed And 65535
+    SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
     getBiome! = fractal2(PX, PZ, BiomeSizeFactor, 0, 2) * TotalBiomes
 End Function
+'--------------
+
+
+'--- Helper Function & Libraries ---
+
 Function LoadAsset& (FILE$)
     ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
     For I = 1 To ListStringLength(ValidFolders$)
@@ -663,6 +693,7 @@ Function LoadAsset& (FILE$)
     Next I
     Write_Log "Cannot Load: " + FILE$
 End Function
+
 '--- Logging ---
 Sub Write_Log (Log$)
     If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
@@ -682,6 +713,7 @@ Sub CriticalError (__E$)
     System
 End Sub
 '---------------
+
 Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Dim As _Unsigned Long I
     If UseDefaultFont Then
@@ -689,12 +721,13 @@ Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
     Else
         For I = 1 To Len(T$)
             B~%% = Asc(T$, I)
-            __Y~% = _SHR(B~%%, 4)
-            __X~% = B~%% - _SHL(__Y~%, 4)
-            DrawBitPackPart Font, X + (I - 1) * 16, Y, Colour, _SHL(__X~%, 4), _SHL(__Y~%, 4), _SHL(__X~%, 4) + 15, _SHL(__Y~%, 4) + 15
+            __Y~% = _ShR(B~%%, 4)
+            __X~% = B~%% - _ShL(__Y~%, 4)
+            DrawBitPackPart Font, X + (I - 1) * 16, Y, Colour, _ShL(__X~%, 4), _ShL(__Y~%, 4), _ShL(__X~%, 4) + 15, _ShL(__Y~%, 4) + 15
         Next I
     End If
 End Sub
+
 '--- Libraries ---
 '$Include:'lib/noise.bm'
 '$Include:'lib/GL_Generate_Texture.bas'
@@ -702,7 +735,7 @@ End Sub
 '$Include:'lib/LoadBitPack.bm'
 '$Include:'lib/DrawBitPackPart.bm'
 '$Include:'lib/clamp.bm'
-'$Include:'lib/iif.bm'
+'$Include:'lib/iif.bm' ' can be mapped to qb64pe's _IIf
 '$Include:'lib/inrange.bm'
 '$Include:'lib/interpolate.bm'
 '$Include:'lib/max.bm'
@@ -714,10 +747,11 @@ End Sub
 '$Include:'lib/ListMap.bas'
 '$Include:'lib/Map.bas'
 '-----------------
-Function IIFString$ (A~%%, B$, C$)
+
+Function IIFString$ (A~%%, B$, C$) ' can be mapped to qb64pe's _IIf
     If A~%% Then IIFString$ = B$ Else IIFString$ = C$
 End Function
-Function RemoveDoubleQuotes$ (__S$)
+Function RemoveDoubleQuotes$ (__S$) ' used by AssetsParser.bas
     If Asc(__S$, 1) = 34 And Asc(__S$, Len(__S$)) = 34 Then
         RemoveDoubleQuotes$ = Mid$(__S$, 2, Len(__S$) - 2)
     Else
