@@ -94,6 +94,7 @@ Type Chunk
     As Long X, Z, TX, TZ
     As _Unsigned _Byte DataLoaded
     As _Unsigned Integer VerticesCount, TransparentVerticesCount, MinimumHeight, MaximumHeight
+    As String * 32 dirtyBit_AirBlock, dirtyBit_TransparentBlock, dirtyBit_SolidBlock
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
 Type ChunkData
@@ -276,7 +277,7 @@ End Sub
 
 Sub BuildCloudsStarsSunMoon Static
     Static CloudsImage As Long
-    Static __X, __Z, __P&, __I%
+    Static __X, __Z, __I%
     Static As Integer hW, hH
     ' Generate Clouds
     CloudsImage = _LoadImage("assets/environment/clouds.png", 32)

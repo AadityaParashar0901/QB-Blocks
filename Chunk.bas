@@ -3,6 +3,7 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
     Static As Long I, X, Z
     Static ChunkID As _Unsigned Long
     ChunkDataLoadQueue = ""
+    ' Build Queues
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
@@ -43,6 +44,7 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
             End Select
         Next I
     Next R
+    ' Clear Chunks outside the render distance
     For R = RenderDistance + 1 To MaxRenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
@@ -82,13 +84,14 @@ Sub LoadNextChunk () Static
     ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
 End Sub
 Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
-    Static As Long PX, PZ, X, Z
+    Static As Long PX, PZ, X, Z, Y, Y_1
     Static As _Unsigned Long ChunkID
     Static As Single Height, dHeight
     Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
     Static As Single Biome
     Static As String * 1296 HeightMap ' Store the heightmap
     Static As String * 384 BiomeMap ' and biomemap
+    Static As _Unsigned _Byte isAirBlock, isTransparentBlock
     If Block_Water = 0 Then
         Block_Water = getBlockID("water")
     End If
@@ -110,6 +113,9 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Chunks(ChunkID).MaximumHeight = WaterLevel + 1
     Chunks(ChunkID).VerticesCount = 0
     Chunks(ChunkID).TransparentVerticesCount = 0
+    Chunks(ChunkID).dirtyBit_AirBlock = String$(32, 0)
+    Chunks(ChunkID).dirtyBit_TransparentBlock = String$(32, 0)
+    Chunks(ChunkID).dirtyBit_SolidBlock = String$(32, 0)
     TransparentBlocksCount = 0
     TreeX = 0
     TreeZ = 0
@@ -140,9 +146,17 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
                     Case Else: Block = 0
                 End Select
                 If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
+                isAirBlock = Block = 0
+                isTransparentBlock = isTransparent(Block)
+                Y_1 = Y + 7 ' 8 - 1
+                If Y_1 >= 8 And Y_1 <= 264 Then
+                    Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) Or _SHL(isAirBlock, Y_1 And 7)
+                    Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) Or _SHL(isTransparentBlock And (Block <> 0), Y_1 And 7)
+                    Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) Or _SHL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
+                End If
                 ChunksData(X, Y, Z, ChunkID).Block = Block
                 ChunksData(X, Y, Z, ChunkID).Light = 15
-                TransparentBlocksCount = TransparentBlocksCount + isTransparent(Block)
+                TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
             Next Y
             If fractal2(PX + X, PZ + Z, 16, 0, 5) > 0.8 And TreeX = 0 And TreeZ = 0 Then
                 TreeX = X
@@ -172,6 +186,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
         Chunks(ChunkID).MaximumHeight = Max(E, Chunks(ChunkID).MaximumHeight)
         For Y = S To E - 1
             ChunksData(X, Y, Z, ChunkID).Block = TreeLog
+            Y_1 = Y + 7
+            Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
         Next Y
         For Y = E - 1 to E
             For XX = X - 1 To X + 1
@@ -179,6 +195,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
                     If XX < 0 Or XX > 17 Or ZZ < 0 Or ZZ > 17 Then _Continue
                     If ChunksData(XX, Y, ZZ, ChunkID).Block = 0 Then ChunksData(XX, Y, ZZ, ChunkID).Block = TreeLeaves: TransparentBlocksCount = TransparentBlocksCount + 1
             Next ZZ, XX
+            Y_1 = Y + 7
+            Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
         Next Y
     Next T
     'Next Z, X
@@ -213,11 +231,12 @@ Sub RenderNextChunk () Static
     RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
 End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
-    Static As Long X, Y, Z
+    Static As Long X, Y, Z, Y_1
     Static As _Unsigned Long VertexID
     Static As _Unsigned Long J, TextureID, TextureOffset
     Static As _Unsigned _Byte Block, Visibility, Face, Light
     Static As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
+    Static As _Unsigned _Byte CurrentLayer, BelowLayer, AboveLayer, CombinationLayer
     If Chunks(ChunkID).DataLoaded < 253 Then Exit Sub
     If Chunks(ChunkID).DataLoaded = 255 Then Exit Sub
     J = ChunkID - 1
@@ -225,9 +244,29 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Chunks(ChunkID).VerticesCount = 0
     Chunks(ChunkID).TransparentVerticesCount = 0
     For Mode = 0 To 1
-        For X = 1 To 16
-            For Z = 1 To 16
-                For Y = Chunks(ChunkID).MinimumHeight To Chunks(ChunkID).MaximumHeight
+        For Y = Chunks(ChunkID).MinimumHeight To Chunks(ChunkID).MaximumHeight
+            Y_1 = Y + 7
+            CurrentLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
+                _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
+                -_ReadBit(Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)), Y_1 And 7)
+            If Y_1 > 0 Then
+                Y_1 = Y + 6
+                BelowLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
+                    _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
+                    -_ReadBit(Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)), Y_1 And 7)
+            Else BelowLayer = 0
+            End If
+            If Y_1 < 255 Then
+                Y_1 = Y + 8
+                AboveLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
+                    _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
+                    -_ReadBit(Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)), Y_1 And 7)
+            Else AboveLayer = 0
+            End If
+            LayerCombination = CurrentLayer Or BelowLayer Or AboveLayer
+            If LayerCombination < 3 Then _Continue
+            For X = 1 To 16
+                For Z = 1 To 16
                     Block = ChunksData(X, Y, Z, ChunkID).Block
                     If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
                     Visibility = isTransparent(ChunksData(X + 1, Y, Z, ChunkID).Block) Or_
@@ -236,6 +275,7 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
                         _SHL(isTransparent(ChunksData(X, Y - 1, Z, ChunkID).Block), 3) Or_
                         _SHL(isTransparent(ChunksData(X, Y, Z + 1, ChunkID).Block), 4) Or_
                         _SHL(isTransparent(ChunksData(X, Y, Z - 1, ChunkID).Block), 5)
+                    If Visibility = 0 Then _Continue
                     For I = 0 To 23
                         Face = _SHR(I, 2)
                         If (Visibility And _SHL(1, Face)) = 0 Then I = I + 3: _Continue
@@ -264,7 +304,7 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
                         Chunks(ChunkID).VerticesCount = Chunks(ChunkID).VerticesCount - (Mode = 0)
                         VertexID = VertexID + 1
                     Next I
-        Next Y, Z, X
+        Next Z, X, Y
         VertexID = VertexID + 1
     Next Mode
     TotalChunksLoaded = TotalChunksLoaded + 1
