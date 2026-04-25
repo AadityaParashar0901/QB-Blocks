@@ -163,43 +163,129 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
                 TreeZ = Z
             End If
     Next Z, X
-    ' Code to Generate Tree
-    ' Currently makes splines of trees -> switched to one tree per chunk
-
-    'For X = 0 To 17
-    '    For Z = 0 To 17
+    ' Code to Generate Tree - By ChatGPT
+    '----------------------------------------------------------------------------------------------------------------------------------------------------------
+    ' Known bugs:
+    '     Goes through chunk borders
+    '     Some parts (mostly top) are not counted for rendering
     X = TreeX
     Z = TreeZ
-    For T = 1 To 1
-        If InRange(2, X, 15) = 0 Or InRange(2, Z, 15) = 0 Then _Continue
+    If InRange(2, X, 15) And InRange(2, Z, 15) Then
         Biome = Asc(BiomeMap, X * 18 + Z + 1)
         Height = CVS(Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4))
-        If Height <= WaterLevel Then _Continue
-        '       If InRange(0.75, fractal2(PX + X, PZ + Z, 16, 0, 5), 0.75) = 0 And InRange(0.75, fractal2(PX + X, PZ + Z, 32, 0, 6), 0.75) = 0 Then _Continue
-        TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
-        If TreeLog = 0 Then _Continue
-        TreeLeaves = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_leaves"))
-        TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
-        TreeHeight = fractal2(PX + X, PZ + Z, 64, 0, 7) * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
-        S = Height + 1
-        E = Min(Height + TreeHeight, 256)
-        Chunks(ChunkID).MaximumHeight = Max(E, Chunks(ChunkID).MaximumHeight)
-        For Y = S To E - 1
-            ChunksData(X, Y, Z, ChunkID).Block = TreeLog
-            Y_1 = Y + 7
-            Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
-        Next Y
-        For Y = E - 1 to E
-            For XX = X - 1 To X + 1
-                For ZZ = Z - 1 To Z + 1
-                    If XX < 0 Or XX > 17 Or ZZ < 0 Or ZZ > 17 Then _Continue
-                    If ChunksData(XX, Y, ZZ, ChunkID).Block = 0 Then ChunksData(XX, Y, ZZ, ChunkID).Block = TreeLeaves: TransparentBlocksCount = TransparentBlocksCount + 1
-            Next ZZ, XX
-            Y_1 = Y + 7
-            Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
-        Next Y
-    Next T
-    'Next Z, X
+        If Height > WaterLevel Then
+	    TreeLog = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_log"))
+            If TreeLog Then
+                TreeLeaves = getBlockID(ListMapGet(BiomesList, 1 + Int(Biome), "tree_leaves"))
+	        ' deterministic noise
+                n! = fractal2(PX + X, PZ + Z, 64, 0, 7)
+		TreeHeight = Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_lower_limit"))
+                TreeHeight = n! * (Val(ListMapGet(BiomesList, 1 + Int(Biome), "tree_height_upper_limit")) - TreeHeight + 1) + TreeHeight
+		bend! = (n! - 0.5) * 0.6
+                branchChance! = 0.2 + n! * 0.3
+                leafR = 2 + n! * 3
+    		xOff! = 0
+		zOff! = 0
+		S = Height + 1
+                E = Min(Height + TreeHeight, 256)
+		maxTreeY = E + leafR + 2
+		Chunks(ChunkID).MaximumHeight = Max(maxTreeY, Chunks(ChunkID).MaximumHeight)
+		For Y = S To E
+		' trunk bending using noise
+                    drift! = fractal2(PX + X + Y, PZ + Z - Y, 8, 0, 5) - 0.5
+                    xOff! = xOff! + drift! * bend!
+                    zOff! = zOff! - drift! * bend!
+		    TX = X + Int(xOff!)
+                    TZ = Z + Int(zOff!)
+		    If TX >= 0 And TX <= 17 And TZ >= 0 And TZ <= 17 Then
+                        ChunksData(TX, Y, TZ, ChunkID).Block = TreeLog
+			Y_1 = Y + 7
+                        Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
+                    End If
+		    ' branch (inline, no function)
+                    branchNoise! = fractal2(PX + X + Y, PZ + Z + Y, 16, 0, 6)
+		    If branchNoise! > (1 - branchChance!) And Y > S + TreeHeight * 0.3 Then
+			dir! = branchNoise! * 6.28
+                        dx! = Cos(dir!)
+                        dz! = Sin(dir!)
+			bx! = xOff!
+                        bz! = zOff!
+                        by! = Y
+			branchLen = 2 + branchNoise! * 3
+			For i = 1 To branchLen
+                            bx! = bx! + dx!
+                            bz! = bz! + dz!
+                            by! = by! + 0.5
+			    TX = X + Int(bx!)
+                            TZ = Z + Int(bz!)
+			    If TX >= 0 And TX <= 17 And TZ >= 0 And TZ <= 17 Then
+				TY = Int(by!)
+				ChunksData(TX, TY, TZ, ChunkID).Block = TreeLog
+				Y_1 = TY + 7
+				' solid = 1
+				Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
+				' air = 0
+				'Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) And Not _SHL(1, Y_1 And 7)
+                            End If
+                        Next i
+			' leaves at branch end (blob)
+                        For lx = -leafR To leafR
+			    For ly = -leafR To leafR
+				For lz = -leafR To leafR
+				    dist = lx * lx + ly * ly + lz * lz
+				    leafNoise! = fractal2(PX + X + lx, PZ + Z + lz, 8, 0, 5)
+				    If dist < leafR * leafR * (0.7 + leafNoise! * 0.6) Then
+					TX = X + Int(bx!) + lx
+					TY = Int(by!) + ly
+					TZ = Z + Int(bz!) + lz
+					If TY > maxTreeY Then maxTreeY = TY
+					If TX >= 0 And TX <= 17 And TZ >= 0 And TZ <= 17 Then
+					    If ChunksData(TX, TY, TZ, ChunkID).Block = 0 Then
+						ChunksData(TX, TY, TZ, ChunkID).Block = TreeLeaves
+						Y_1 = TY + 7
+						' transparent = 1
+						Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) = _
+						Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
+						' air = 0 (clear bit)
+						'Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) And Not _SHL(1, Y_1 And 7)
+						TransparentBlocksCount = TransparentBlocksCount + 1
+					    End If
+					End If
+				    End If
+			Next lz, ly, lx
+                    End If
+		Next Y
+		' top leaf blob (main canopy)
+                For lx = -leafR To leafR
+		    For ly = -leafR To leafR
+			For lz = -leafR To leafR
+			    dist = lx * lx + ly * ly + lz * lz
+			    leafNoise! = fractal2(PX + X + lx, PZ + Z + lz, 8, 0, 5)
+			    If dist < leafR * leafR * (0.8 + leafNoise! * 0.4) Then
+				TX = X + Int(xOff!) + lx
+				TY = E + ly
+				TZ = Z + Int(zOff!) + lz
+				If TY > maxTreeY Then maxTreeY = TY
+				If TX >= 0 And TX <= 17 And TZ >= 0 And TZ <= 17 Then
+				    If ChunksData(TX, TY, TZ, ChunkID).Block = 0 Then
+					ChunksData(TX, TY, TZ, ChunkID).Block = TreeLeaves
+					Y_1 = TY + 7
+					' transparent = 1
+					Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) = _
+					Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)) Or _SHL(1, Y_1 And 7)
+					' air = 0 (clear bit)
+					'Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) = Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)) And Not _SHL(1, Y_1 And 7)
+					TransparentBlocksCount = TransparentBlocksCount + 1
+				    End If
+				End If
+			    End If
+		Next lz, ly, lx
+	    End If
+        End If
+    End If
+    Chunks(ChunkID).MaximumHeight = Max(maxTreeY, Chunks(ChunkID).MaximumHeight)
+    '----------------------------------------------------------------------------------------------------------------------------------------------------------
+
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
     If SkipLighting = 0 Then ' Lighting
         For X = 0 To 17
