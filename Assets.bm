@@ -1,0 +1,7 @@
+Function LoadAsset& (FILE$)
+    ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
+    For I = 1 To ListStringLength(ValidFolders$)
+        If _FileExists(ListStringGet(ValidFolders$, I) + FILE$ + ".png") Then LoadAsset& = _LoadImage(ListStringGet(ValidFolders$, I) + FILE$ + ".png", 32): Exit Function
+    Next I
+    Write_Log "Cannot Load: " + FILE$
+End Function

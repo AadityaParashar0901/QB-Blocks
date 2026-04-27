@@ -8,6 +8,10 @@ _Console On
 Const LogFile = 1
 If LogFile Then Open "log.txt" For Output Lock Write As #100 'Open Log File
 
+'--- Libraries ---
+Const BufferSize = 1024
+'$Include:'lib/LongBuffer.bi'
+'-----------------
 '--- Type ---
 '$Include:'Vectors.bi'
 Type Entity
@@ -42,7 +46,7 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
-Fps = 60 ' _FPS
+Fps = 240 ' _FPS
 RenderDistance = 8
 '-----------------------------
 
@@ -99,7 +103,7 @@ End Type
 Dim Shared As ChunkData ChunksData(0 To 17, 0 To 257, 0 To 17, 1 To MaxChunks) ' used to store Chunk Blocks, Lighting
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '    Chunk Data, Render Data Load Queue
-Dim Shared As String ChunkDataLoadQueue, RenderDataLoadQueue
+Dim Shared As LongBuffer ChunkDataLoadQueueX, ChunkDataLoadQueueZ, RenderDataLoadQueue
 Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
 Const ChunkDataGraphTimerConstant = 4
 Const RenderDataGraphTimerConstant = 4
@@ -160,11 +164,11 @@ GL_EXTRA_STATE = CONST_GL_STATE_SHOW_LOADING_MENU
 '--------------
 
 '--- Assets ---
-'$Include:'AssetsParser.bas' ' Parse assets.list file and load assets
+'$Include:'Assets.bi' ' Parse assets.list file and load assets
 '--------------
 
 '--- Biomes ---
-'$Include:'BiomesParser.bas' ' Parse biomes.list file and load biomes & properties
+'$Include:'Biomes.bi' ' Parse biomes.list file and load biomes & properties
 '--------------
 
 '--- Noise ---
@@ -223,10 +227,10 @@ Do
         NeedToRebuildChunkDataLoadQueue = 0
         RebuildChunkDataLoadQueue
     End If
-    If Len(ChunkDataLoadQueue) Then
+    If ChunkDataLoadQueueX.Size Then
         LoadNextChunk
     End If
-    If Len(RenderDataLoadQueue) Then
+    If RenderDataLoadQueue.Size Then
         RenderNextChunk
     End If
 
@@ -241,8 +245,8 @@ While GL_CURRENT_STATE: Wend
 If LogFile Then Close #100 'Close Log File
 System
 
-'$Include:'FPSCounter.bas'
-'$Include:'ErrHandlers.bas'
+'$Include:'FPSCounter.bi'
+'$Include:'ErrHandlers.bi'
 CubeModel: '$Include:'assets/models/cube.txt'
 Sub MoveEntity (Entity As Entity, Angle!, Speed!)
     Entity.Position.X = Entity.Position.X + Cos(_D2R(Angle!)) * Speed!
@@ -269,7 +273,7 @@ Sub SetSkyColor (Colour&) Static
 End Sub
 
 Sub UpdateRenderDistance (__NewRenderDistance&)
-    RenderDistance = Clamp(1, __NewRenderDistance&, MaxRenderDistance)
+    RenderDistance = _Clamp(1, __NewRenderDistance&, MaxRenderDistance)
     RebuildChunkDataLoadQueue
 End Sub
 
@@ -443,7 +447,7 @@ Sub _GL Static
                 Case 71, 103 ' G
                     Fog = Not Fog
                 Case 15616 ' F3
-                    GL_EXTRA_STATE = IIF(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
+                    GL_EXTRA_STATE = _IIf(GL_EXTRA_STATE <> CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_FPS, CONST_GL_STATE_SHOW_DEBUG_MENU)
                 Case 70, 102 'F
                     ' - Update Render Distance with F, Shift + F, has bugs
                     'UpdateRenderDistance RenderDistance + 2 * _KeyDown(100304) + 1
@@ -463,7 +467,7 @@ Sub _GL Static
             While _MouseInput
                 _MouseHide
                 Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 359.875)
-                Player.Angle.Y = Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
+                Player.Angle.Y = _Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
                 _MouseMove _Width / 2, _Height / 2
             Wend
             '----------------------
@@ -512,7 +516,7 @@ Sub _GL Static
                 _glFogf _GL_FOG_END, Max(Y, 512)
                 _glFogf _GL_FOG_START, 16
                 _glFogfv _GL_FOG_COLOR, glVec4(SkyColorRed!, SkyColorGreen!, SkyColorBlue!, 1)
-                _glFogf _GL_FOG_DENSITY, Clamp(0, 5 - Y / 200, 5)
+                _glFogf _GL_FOG_DENSITY, _Clamp(0, 5 - Y / 200, 5)
             End If
             If Camera.Position.Y < CloudsHeight Then DrawClouds
 
@@ -543,7 +547,7 @@ Sub _GL Static
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
             _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0 ' Translate for water animation
             For I = 1 To MaxChunks ' Render Transparent Quads from Chunks
-                tmpChunksVisible = tmpChunksVisible + IIF((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
+                tmpChunksVisible = tmpChunksVisible + _IIf((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
                 _glPushMatrix
@@ -593,7 +597,7 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_SHOW_DEBUG_MENU Then
                 PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Chunks Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
-                PrintString 0, 80, "Queue Size:" + Str$(_ShR(Len(ChunkDataLoadQueue), 3)) + "," + Str$(_ShR(Len(RenderDataLoadQueue), 2)), LightBlue
+                PrintString 0, 80, "Queue Size:" + Str$(ChunkDataLoadQueueX.Size) + "," + Str$(RenderDataLoadQueue.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
                 For I = 1 To 256
@@ -614,7 +618,7 @@ Function glVec4%& (X!, Y!, Z!, W!)
     glVec4%& = _Offset(VEC4())
 End Function
 '--- End of GL Code ---
-'$Include:'Chunk.bas' 'Contains Code to load ChunkData and Render Chunks
+'$Include:'Chunk.bm' 'Contains Code to load ChunkData and Render Chunks
 
 '--- Block Hash Table ---
 Function getHash~%% (T$) Static ' hash function for the blocks hash table
@@ -680,15 +684,7 @@ End Function
 
 
 '--- Helper Function & Libraries ---
-
-Function LoadAsset& (FILE$)
-    ValidFolders$ = ListStringFromString("assets/blocks/,assets/flowers/")
-    For I = 1 To ListStringLength(ValidFolders$)
-        If _FileExists(ListStringGet(ValidFolders$, I) + FILE$ + ".png") Then LoadAsset& = _LoadImage(ListStringGet(ValidFolders$, I) + FILE$ + ".png", 32): Exit Function
-    Next I
-    Write_Log "Cannot Load: " + FILE$
-End Function
-
+'$Include:'Assets.bm'
 '--- Logging ---
 Sub Write_Log (Log$)
     If Asc(Log$, 1) = 1 Then T$ = ListStringPrint(Log$) Else T$ = Log$
@@ -730,7 +726,6 @@ End Sub
 '$Include:'lib/LoadBitPack.bm'
 '$Include:'lib/DrawBitPackPart.bm'
 '$Include:'lib/clamp.bm'
-'$Include:'lib/iif.bm' ' can be mapped to qb64pe's _IIf
 '$Include:'lib/inrange.bm'
 '$Include:'lib/interpolate.bm'
 '$Include:'lib/max.bm'
@@ -741,11 +736,9 @@ End Sub
 '$Include:'lib/fade.bm'
 '$Include:'lib/ListMap.bas'
 '$Include:'lib/Map.bas'
+'$Include:'lib/LongBuffer.bm'
 '-----------------
 
-Function IIFString$ (A~%%, B$, C$) ' can be mapped to qb64pe's _IIf
-    If A~%% Then IIFString$ = B$ Else IIFString$ = C$
-End Function
 Function RemoveDoubleQuotes$ (__S$) ' used by AssetsParser.bas
     If Asc(__S$, 1) = 34 And Asc(__S$, Len(__S$)) = 34 Then
         RemoveDoubleQuotes$ = Mid$(__S$, 2, Len(__S$) - 2)

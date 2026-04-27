@@ -1,17 +1,16 @@
 Dim Shared As Long TextureAtlas
 Dim Shared As _Unsigned Integer TextureSize, TotalTextures, TotalBlocks
 Dim As String FileContents
+
 '    Hash Table for getBlockID
 Dim Shared As String BlockHashTable_List(0 To 255)
 Dim Shared As _Unsigned Integer BlockHashTable_Length(0 To 255)
 Dim Shared As String BlockHashTable_Code(0 To 255)
+
 'AssetsParser
-Open "assets\assets.list" For Binary As #1
-FileContents = String$(LOF(1), 0)
-Get #1, , FileContents
-Close #1
-FileContents = Tokenizer$(FileContents) ' Tokenize the File into a list
+FileContents = Tokenizer$(_ReadFile$("assets/assets.list")) ' Tokenize the File into a list
 Write_Log "Assets: " + ListStringPrint(FileContents)
+
 CurrentMode = 0
 For I = 1 To ListStringLength(FileContents) ' Parse it
     CurrentListElement$ = ListStringGet(FileContents, I)
@@ -19,7 +18,7 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
         Case 0: Select Case CurrentListElement$
                 Case "texture_size": I = I + 2
                     TextureSize = Val(ListStringGet(FileContents, I))
-                    Write_Log "Texture Size:" + Str$(TextureSize)
+                    File_Log "Texture Size:" + Str$(TextureSize)
                 Case "textures": CurrentMode = 1: I = I + 1
                     Type TextureData
                         As String Name
@@ -56,7 +55,7 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                 Case ","
                 Case "animate": I = I + 2: Textures(CurrentTextureID).AnimationFrames = Val(ListStringGet(FileContents, I)) ' not being used currently
                     Y~% = Y~% + Textures(CurrentTextureID).AnimationFrames - 1
-                Case Else: Write_Log "Loading Texture(" + ByteToHex$(CurrentTextureID) + "): " + CurrentListElement$
+                Case Else: File_Log "Loading Texture(" + ByteToHex$(CurrentTextureID) + "): " + CurrentListElement$
                     If TextureMode Then _Continue
                     CurrentTextureID = CurrentTextureID + 1: TextureMode = 1
                     ReDim _Preserve Shared Textures(1 To CurrentTextureID) As TextureData
@@ -77,7 +76,7 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                     ReDim _Preserve Shared omitBlockFace(0 To CurrentBlockID, 0 To 5) As _Unsigned _Bit
                     Blocks(CurrentBlockID).Name = RemoveDoubleQuotes$(ListStringGet(FileContents, I))
                     BlockMode = 1
-                    Write_Log "Block Name(" + ByteToHex$(CurrentBlockID) + "): " + Blocks(CurrentBlockID).Name
+                    File_Log "Block Name(" + ByteToHex$(CurrentBlockID) + "): " + Blocks(CurrentBlockID).Name
                 Case "textures": If BlockMode = 0 Then _Continue
                     I = I + 2
                     Select Case ListStringGet(FileContents, I)
@@ -88,11 +87,11 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                         Case Else
                             Blocks(CurrentBlockID).Faces = String$(6, Val(ListStringGet(FileContents, I)))
                     End Select
-                    Write_Log "Block Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
+                    File_Log "Block Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
                 Case "transparent": If BlockMode = 0 Then _Continue
                     Blocks(CurrentBlockID).Transparent = -1
                     isTransparent(CurrentBlockID) = 1
-                    Write_Log "Block is transparent"
+                    File_Log "Block is transparent"
                 Case "omit": If BlockMode = 0 Then _Continue
                     Select Case ListStringGet(FileContents, I + 2)
                         Case "[": I = I + 2: For J = 0 To 5
@@ -102,7 +101,7 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                         Case Else
                             For J = 0 To 5: omitBlockFace(CurrentBlockID, J) = 1: Next J
                     End Select
-                    Write_Log "Omit Block Face: " + Str$(omitBlockFace(CurrentBlockID, 0)) + Str$(omitBlockFace(CurrentBlockID, 1)) + Str$(omitBlockFace(CurrentBlockID, 2)) + Str$(omitBlockFace(CurrentBlockID, 3)) + Str$(omitBlockFace(CurrentBlockID, 4)) + Str$(omitBlockFace(CurrentBlockID, 5))
+                    File_Log "Omit Block Face: " + Str$(omitBlockFace(CurrentBlockID, 0)) + Str$(omitBlockFace(CurrentBlockID, 1)) + Str$(omitBlockFace(CurrentBlockID, 2)) + Str$(omitBlockFace(CurrentBlockID, 3)) + Str$(omitBlockFace(CurrentBlockID, 4)) + Str$(omitBlockFace(CurrentBlockID, 5))
             End Select
     End Select
 Next I
@@ -115,11 +114,11 @@ For I = 1 To TotalBlocks
     ListStringAdd BlockHashTable_List(Hash~%%), Blocks(I).Name
     BlockHashTable_Length(Hash~%%) = BlockHashTable_Length(Hash~%%) + 1
     BlockHashTable_Code(Hash~%%) = BlockHashTable_Code(Hash~%%) + MKI$(I)
-    Write_Log "isTransparent(" + Blocks(I).Name + "): " + IIFString(isTransparent(I), "True", "False")
+    File_Log "isTransparent(" + Blocks(I).Name + "): " + _IIf(isTransparent(I), "True", "False")
 Next I
 For I = 0 To 255
     If BlockHashTable_List(I) = "" Then _Continue
-    Write_Log "Block Hash Table (" + ByteToHex$(I) + "): " + ListStringPrint(BlockHashTable_List(I))
+    File_Log "Block Hash Table (" + ByteToHex$(I) + "): " + ListStringPrint(BlockHashTable_List(I))
 Next I
 '    Create Texture Atlas
 Dim Shared TextureAtlasHeight As _Unsigned Long

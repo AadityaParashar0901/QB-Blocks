@@ -1,10 +1,7 @@
 Dim Shared As String BiomesList
 BiomesList = ListMapNew$
-Open "assets\biomes.list" For Binary As #1
-FileContents = String$(LOF(1), 0)
-Get #1, , FileContents
-Close #1
-FileContents = Tokenizer$(FileContents) ' Tokenize the file into a list
+FileContents = Tokenizer$(_ReadFile$("assets/biomes.list")) ' Tokenize the file into a list
+
 CurrentMode = 0
 For I = 1 To ListStringLength(FileContents) ' Parse the list
     CurrentListElement$ = ListStringGet(FileContents, I)
@@ -35,6 +32,7 @@ Write_Log "Biomes: " + ListMapPrint(BiomesList)
 Dim Shared TotalBiomes As _Unsigned Integer
 TotalBiomes = ListMapLength(BiomesList)
 Write_Log "Total Biomes = " + Hex$(TotalBiomes)
+
 ' Build the information tables
 '  which will be used by getHeight! Function
 Dim Shared As _Unsigned _Byte BiomeBlocks(0 To 2, 0 To TotalBiomes - 1)

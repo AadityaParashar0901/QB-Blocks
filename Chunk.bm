@@ -2,7 +2,8 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
     Static As Vec3_Long tmpChunksStart, tmpChunksEnd
     Static As Long I, X, Z
     Static ChunkID As _Unsigned Long
-    ChunkDataLoadQueue = ""
+    LongBuffer_Clear ChunkDataLoadQueueX
+    LongBuffer_Clear ChunkDataLoadQueueZ
     ' Build Queues
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
@@ -21,7 +22,8 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
                         ChunkID = getChunkID(X, Z)
                         IsDifferentChunk = Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z
                         If IsDifferentChunk Or Chunks(ChunkID).DataLoaded < 253 Then
-                            ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
+                            LongBuffer_Push ChunkDataLoadQueueX, X
+                            LongBuffer_Push ChunkDataLoadQueueZ, Z
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
                                 TotalChunksLoaded = TotalChunksLoaded - 1
@@ -33,7 +35,8 @@ Sub RebuildChunkDataLoadQueue Static ' Used to build the chunk loading queue
                         ChunkID = getChunkID(X, Z)
                         IsDifferentChunk = Chunks(ChunkID).X <> X Or Chunks(ChunkID).Z <> Z
                         If IsDifferentChunk Or Chunks(ChunkID).DataLoaded < 253 Then
-                            ChunkDataLoadQueue = ChunkDataLoadQueue + MKL$(X) + MKL$(Z)
+                            LongBuffer_Push ChunkDataLoadQueueX, X
+                            LongBuffer_Push ChunkDataLoadQueueZ, Z
                             If Chunks(ChunkID).DataLoaded = 255 Then
                                 Chunks(ChunkID).DataLoaded = 0
                                 TotalChunksLoaded = TotalChunksLoaded - 1
@@ -77,11 +80,12 @@ Function getChunkID~& (X As Long, Z As Long) Static ' Hash Table approach, faste
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
 Sub LoadNextChunk () Static
-    Static __Chunk$
-    __Chunk$ = Left$(ChunkDataLoadQueue, 8): ChunkDataLoadQueue = Mid$(ChunkDataLoadQueue, 9)
+    Static X As Long, Z As Long, ST#
+    X = LongBuffer_Pop(ChunkDataLoadQueueX)
+    Z = LongBuffer_Pop(ChunkDataLoadQueueZ)
     ST# = Timer(0.001)
-    LoadChunk CVL(Left$(__Chunk$, 4)), CVL(Right$(__Chunk$, 4))
-    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
+    LoadChunk X, Z
+    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
 End Sub
 Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z, Y, Y_1
@@ -99,7 +103,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     If Chunks(ChunkID).X = CX And Chunks(ChunkID).Z = CZ Then
         Select Case Chunks(ChunkID).DataLoaded
             Case 255: Exit Sub
-            Case 253: If Instr(RenderDataLoadQueue, MKL$(ChunkID)) = 0 Then RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
+            Case 253: If LongBuffer_Search(RenderDataLoadQueue, ChunkID) = -1 Then LongBuffer_Push RenderDataLoadQueue, ChunkID
                 Exit Sub
         End Select
     End If
@@ -128,8 +132,8 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
             Chunks(ChunkID).MaximumHeight = Max(Height + 1, Chunks(ChunkID).MaximumHeight)
             Chunks(ChunkID).MinimumHeight = Min(Chunks(ChunkID).MinimumHeight, Height - 2)
     Next Z, X
-    Chunks(ChunkID).MaximumHeight = Clamp(1, Chunks(ChunkID).MaximumHeight, 256)
-    Chunks(ChunkID).MinimumHeight = Clamp(1, Chunks(ChunkID).MinimumHeight, 256)
+    Chunks(ChunkID).MaximumHeight = _Clamp(1, Chunks(ChunkID).MaximumHeight, 256)
+    Chunks(ChunkID).MinimumHeight = _Clamp(1, Chunks(ChunkID).MinimumHeight, 256)
     For X = 0 To 17
         For Z = 0 To 17
             Height = CVS(Mid$(HeightMap, _SHL(X * 18 + Z + 1, 2) - 3, 4))
@@ -160,14 +164,14 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
     Chunks(ChunkID).DataLoaded = 253
     'File_Log "Chunk Data Loaded(" + _Trim$(Str$(ChunkID)) + "):" + Str$(Chunks(ChunkID).X) + Str$(Chunks(ChunkID).Z)
-    RenderDataLoadQueue = RenderDataLoadQueue + MKL$(ChunkID)
+    LongBuffer_Push RenderDataLoadQueue, ChunkID
 End Sub
 Sub RenderNextChunk () Static
-    Static __Chunk$
-    __Chunk$ = Left$(RenderDataLoadQueue, 4): RenderDataLoadQueue = Mid$(RenderDataLoadQueue, 5)
+    Static Chunk As _Unsigned Long, ST#
+    Chunk = LongBuffer_Pop(RenderDataLoadQueue)
     ST# = Timer(0.01)
-    RenderChunk CVL(__Chunk$)
-    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
+    RenderChunk Chunk
+    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
 End Sub
 Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As Long X, Y, Z, Y_1
