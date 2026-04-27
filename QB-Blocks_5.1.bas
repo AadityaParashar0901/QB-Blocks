@@ -21,9 +21,6 @@ End Type
 '--- Game Build Settings ---
 Const MaxRenderDistance = 16
 Const WaterLevel = 64
-Const MinimalLighting = -1 ' Fast Lighting
-Const SkipLighting = -1 ' Disables Lighting
-Const GL_Chunk_Rendering = 0 ' Moves Chunk Rendering to GL Thread, 3 times Faster, Bad for less render distance (or while you're playing)
 Const UseDefaultFont = -1
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
@@ -228,7 +225,7 @@ Do
     If Len(ChunkDataLoadQueue) Then
         LoadNextChunk
     End If
-    If GL_Chunk_Rendering = 0 And Len(RenderDataLoadQueue) Then
+    If Len(RenderDataLoadQueue) Then
         RenderNextChunk
     End If
 
@@ -610,9 +607,6 @@ Sub _GL Static
             _Display
 
     End Select
-    If GL_Chunk_Rendering And Len(RenderDataLoadQueue) Then
-        RenderNextChunk
-    End If
     GFPSCount = GFPSCount + 1
 End Sub
 Function glVec4%& (X!, Y!, Z!, W!)
