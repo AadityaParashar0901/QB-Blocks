@@ -66,7 +66,6 @@ Const CONST_GL_STATE_SHOW_FPS = 6
 Const CONST_GL_STATE_SHOW_DEBUG_MENU = 7
 Const CONST_GL_STATE_SHOW_LOADING_MENU = 8
 Dim Shared As String LoadingMessage
-GL_EXTRA_STATE = CONST_GL_STATE_SHOW_LOADING_MENU
 
 _GLRender _Behind
 
@@ -154,8 +153,10 @@ Dim Shared As Long MainScreen, ScreenWidth, ScreenHeight
 ScreenWidth = 960: ScreenHeight = 540
 MainScreen = _NewImage(ScreenWidth, ScreenHeight, 32)
 Screen MainScreen
+While _ScreenExists = 0: Wend
 Color White, _RGB32(0, 127)
 While _Resize: Wend
+GL_EXTRA_STATE = CONST_GL_STATE_SHOW_LOADING_MENU
 '--------------
 
 '--- Assets ---
@@ -320,7 +321,6 @@ Sub BuildCloudsStarsSunMoon Static
 End Sub
 '--- Start of GL Code ---
 Sub DrawStarsSunMoon Static
-    Static As Single CloudsTranslateX
     _glPushMatrix
 
     _glTranslatef Camera.Position.X, Camera.Position.Y, Camera.Position.Z

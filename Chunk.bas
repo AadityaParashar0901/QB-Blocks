@@ -87,7 +87,7 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Static As Long PX, PZ, X, Z, Y, Y_1
     Static As _Unsigned Long ChunkID
     Static As Single Height, dHeight
-    Static As _Unsigned _Byte Block, Block_Water, BiomeSelector, TreeLog, TreeLeaves, TreeHeight
+    Static As _Unsigned _Byte Block, Block_Water, BiomeSelector
     Static As Single Biome
     Static As String * 1296 HeightMap ' Store the heightmap
     Static As String * 384 BiomeMap ' and biomemap
@@ -117,8 +117,6 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
     Chunks(ChunkID).dirtyBit_TransparentBlock = String$(32, 0)
     Chunks(ChunkID).dirtyBit_SolidBlock = String$(32, 0)
     TransparentBlocksCount = 0
-    TreeX = 0
-    TreeZ = 0
     ' ChunkLoading
     For X = 0 To 17
         For Z = 0 To 17
@@ -158,10 +156,6 @@ Sub LoadChunk (CX As Long, CZ As Long) Static ' Load chunk data
                 ChunksData(X, Y, Z, ChunkID).Light = 15
                 TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
             Next Y
-            If fractal2(PX + X, PZ + Z, 16, 0, 5) > 0.8 And TreeX = 0 And TreeZ = 0 Then
-                TreeX = X
-                TreeZ = Z
-            End If
     Next Z, X
     If TransparentBlocksCount = 0 Then Chunks(ChunkID).DataLoaded = 255: Exit Sub
     Chunks(ChunkID).DataLoaded = 253
@@ -181,7 +175,7 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
     Static As _Unsigned Long J, TextureID, TextureOffset
     Static As _Unsigned _Byte Block, Visibility, Face, Light
     Static As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
-    Static As _Unsigned _Byte CurrentLayer, BelowLayer, AboveLayer, CombinationLayer
+    Static As _Unsigned _Byte CurrentLayer, BelowLayer, AboveLayer
     If Chunks(ChunkID).DataLoaded < 253 Then Exit Sub
     If Chunks(ChunkID).DataLoaded = 255 Then Exit Sub
     J = ChunkID - 1
@@ -194,14 +188,14 @@ Sub RenderChunk (ChunkID As _Unsigned Long) Static ' Add Quads for Rendering
             CurrentLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
                 _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
                 -_ReadBit(Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)), Y_1 And 7)
-            If Y_1 > 0 Then
+            If Y > 1 Then
                 Y_1 = Y + 6
                 BelowLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
                     _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
                     -_ReadBit(Asc(Chunks(ChunkID).dirtyBit_SolidBlock, _SHR(Y_1, 3)), Y_1 And 7)
             Else BelowLayer = 0
             End If
-            If Y_1 < 255 Then
+            If Y < 256 Then
                 Y_1 = Y + 8
                 AboveLayer = _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_AirBlock, _SHR(Y_1, 3)), Y_1 And 7), 2) Or_
                     _SHL(-_ReadBit(Asc(Chunks(ChunkID).dirtyBit_TransparentBlock, _SHR(Y_1, 3)), Y_1 And 7), 1) Or_
