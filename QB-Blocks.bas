@@ -25,9 +25,6 @@ End Type
 '--- Game Build Settings ---
 Const GameVersion = 6.0
 
-Const UseMultiThreading = 0
-Const MaxThreads = 1
-
 Const MaxRenderDistance = 16
 Const WaterLevel = 64
 Const UseDefaultFont = -1
@@ -95,22 +92,13 @@ Type Chunk
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
-'$Include:'multi_threading\multi_threading.bi'
-Type ChunkWorker ' for multithreading
-    As Long id
-    As _Unsigned Long ChunkId
-    As _Unsigned _Byte Start, Finished, Quit
-    As Single TimeTook
-    As Chunk Chunk
-End Type
-Dim Shared ChunkWorkers(1 To MaxThreads) As ChunkWorker
 
 Dim Shared As LongBuffer Queue_ChunkLoad, Queue_RenderLoad
 Dim Shared As _Byte NeedToBuild_ChunkQueue
 
 Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
-Const ChunkDataGraphTimerConstant = 1
-Const RenderDataGraphTimerConstant = 1
+Const ChunkDataGraphTimerConstant = 4
+Const RenderDataGraphTimerConstant = 4
 '--------------
 
 '--- Player ---
@@ -199,14 +187,7 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 GL_Loading_Menu_Message = "Building Chunks"
 Build_ChunkQueue
 GL_Loading_Menu_Message = "Starting Game"
-If UseMultiThreading Then
-    For id = LBound(ChunkWorkers) To UBound(ChunkWorkers)
-        ChunkWorkers(id).id = id
-        If invokeWorker(id) Then Write_Log "Started Thread: " + _ToStr$(id) Else Write_Log "Cannot Start Thread: " + _ToStr$(id)
-    Next id
-End If
 Build_Clouds
-_Delay 0.05
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_Gameplay
 GL_EXTRA_STATE = CONST_GL_STATE_Show_Debug_Menu
@@ -234,21 +215,10 @@ Do
         Build_ChunkQueue
     End If
     If Queue_ChunkLoad.Size Then
-        LoadNextChunk ' Dispatcher
+        LoadNextChunk
     End If
     If Queue_RenderLoad.Size Then
         RenderNextChunk
-    End If
-    If UseMultiThreading Then
-        For id = LBound(ChunkWorkers) To UBound(ChunkWorkers) ' Collector
-            lockThread id
-            If ChunkWorkers(id).Finished = 0 Then _Continue
-            Chunks(ChunkWorkers(id).ChunkId) = ChunkWorkers(id).Chunk
-            ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (ChunkWorkers(id).TimeTook) * 1024 / ChunkDataGraphTimerConstant, 255))
-            LongBuffer_Push Queue_RenderLoad, ChunkWorkers(id).ChunkId
-            ChunkWorkers(id).Finished = 0
-            unlockThread id
-        Next id
     End If
 
     If _Exit Then Exit Do
@@ -259,14 +229,6 @@ Loop
 GL_CURRENT_STATE = CONST_GL_STATE_Free_Assets
 While GL_CURRENT_STATE: Wend
 '-------------------
-'--- Exit Threads ---
-If UseMultiThreading Then
-    For id = LBound(ChunkWorkers) To UBound(ChunkWorkers)
-        ChunkWorkers(id).Quit = -1
-        joinThread id
-    Next id
-End If
-'--------------------
 If LogFile Then Close #100 'Close Log File
 System
 
@@ -579,43 +541,11 @@ End Function
 '$Include:'Chunk.bm'
 Sub LoadNextChunk ()
     Dim As _Unsigned Long I
-    If UseMultiThreading Then
-        For I = LBound(ChunkWorkers) To UBound(ChunkWorkers)
-            If ChunkWorkers(I).Start Or ChunkWorkers(I).Finished Then _Continue
-            lockThread I
-            ChunkWorkers(I).ChunkId = LongBuffer_Pop(Queue_ChunkLoad)
-            ChunkWorkers(I).Chunk = Chunks(ChunkWorkers(I).ChunkId)
-            Write_Log "Gave work to thread " + _ToStr$(I) + ": " + _ToStr$(ChunkWorkers(I).ChunkId)
-            ChunkWorkers(I).Start = -1
-            unlockThread I
-        Next I
-    Else
-        I = LongBuffer_Pop(Queue_ChunkLoad)
-        ST# = Timer(0.01)
-        LoadChunk I, Chunks(I)
-        ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
-        LongBuffer_Push Queue_RenderLoad, I
-    End If
-End Sub
-Sub workerThread (id As Long)
-    $Checking:Off
-    Dim As Single ST
-    ChunkWorkers(id).id = id
-    Do
-        If ChunkWorkers(id).Start = 0 Then
-            _Delay 0.001
-            _Continue
-        End If
-        lockThread id
-        ST = Timer(0.01)
-        LoadChunk ChunkWorkers(id).ChunkId, ChunkWorkers(id).Chunk
-        ChunkWorkers(id).Start = 0
-        ChunkWorkers(id).TimeTook = Timer(0.01) - ST
-        ChunkWorkers(id).Finished = -1
-        unlockThread id
-    Loop Until ChunkWorkers(id).Quit
-    exitThread
-    $Checking:On
+    I = LongBuffer_Pop(Queue_ChunkLoad)
+    ST# = Timer(0.01)
+    LoadChunk I, Chunks(I)
+    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
+    LongBuffer_Push Queue_RenderLoad, I
 End Sub
 
 '--- Block Hash Table ---
