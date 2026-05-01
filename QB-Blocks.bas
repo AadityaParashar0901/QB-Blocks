@@ -41,7 +41,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
-RenderDistance = 8
+RenderDistance = MaxRenderDistance
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -57,7 +57,7 @@ Dim Shared As _Unsigned _Byte GL_CURRENT_STATE, GL_EXTRA_STATE
 Const CONST_GL_STATE_Create_Textures = 1
 Const CONST_GL_STATE_Startup_Menu = 2
 Const CONST_GL_STATE_Pause_Menu = 3
-Const CONST_GL_STATE_Gameplay = 4
+Const CONST_GL_STATE_GamePlay = 4
 Const CONST_GL_STATE_Free_Assets = 5
 Const CONST_GL_STATE_Show_FPS = 6
 Const CONST_GL_STATE_Show_Debug_Menu = 7
@@ -95,6 +95,7 @@ Dim Shared As _Unsigned Long TotalChunksLoaded
 
 Dim Shared As LongBuffer Queue_ChunkLoad, Queue_RenderLoad
 Dim Shared As _Byte NeedToBuild_ChunkQueue
+Dim Shared As LongBuffer CompletedChunks
 
 Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
 Const ChunkDataGraphTimerConstant = 4
@@ -189,7 +190,7 @@ Build_ChunkQueue
 GL_Loading_Menu_Message = "Starting Game"
 Build_Clouds
 Timer(FPSCounterTimer) On
-GL_CURRENT_STATE = CONST_GL_STATE_Gameplay
+GL_CURRENT_STATE = CONST_GL_STATE_GamePlay
 GL_EXTRA_STATE = CONST_GL_STATE_Show_Debug_Menu
 _FPS Fps
 Do
@@ -338,7 +339,7 @@ Sub DrawClouds
             CloudVertices(I + 3).Z = CloudVertices(I + 3).Z + 4096
         End If
     Next I
-    If GL_CURRENT_STATE = CONST_GL_STATE_Gameplay Then GameTime = ClampCycle(0, GameTime + 1 / GFPS - (_KeyDown(84) Or _KeyDown(116)), 1439)
+    If GL_CURRENT_STATE = CONST_GL_STATE_GamePlay Then GameTime = ClampCycle(0, GameTime + 1 / GFPS - (_KeyDown(84) Or _KeyDown(116)), 1439)
 End Sub
 
 Sub _GL Static
@@ -354,9 +355,9 @@ Sub _GL Static
             _MouseShow
             While _MouseInput: Wend
             Select Case _KeyHit
-                Case 27: GL_CURRENT_STATE = CONST_GL_STATE_Gameplay
+                Case 27: GL_CURRENT_STATE = CONST_GL_STATE_GamePlay
             End Select
-        Case CONST_GL_STATE_Gameplay
+        Case CONST_GL_STATE_GamePlay
             SimulateCamera
             '--- Keyboard Movement ---
             If _KeyDown(87) Or _KeyDown(119) Then MoveEntity Player, Player.Angle.X - 90, Player.Speed / GFPS
@@ -404,7 +405,7 @@ Sub _GL Static
             GL_CURRENT_STATE = 0
         Case CONST_GL_STATE_Startup_Menu
 
-        Case CONST_GL_STATE_Pause_Menu, CONST_GL_STATE_Gameplay
+        Case CONST_GL_STATE_GamePlay
             _glViewport 0, 0, _Width - 1, _Height - 1
             _glEnable _GL_BLEND
 
@@ -447,7 +448,8 @@ Sub _GL Static
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             '--- Render Chunks' Opaque Render Data ---
-            For I = 1 To MaxChunks
+            For __I = 1 To CompletedChunks.Size
+                I = LongBuffer_Get(CompletedChunks, __I - 1)
                 If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize
                 _glPushMatrix
@@ -458,15 +460,15 @@ Sub _GL Static
                 _glDrawArrays _GL_QUADS, 0, Chunks(I).VerticesCount
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).VerticesCount, 2)
-            Next I
+            Next __I
             '-----------------------------------------
-
 
             '--- Render Chunks' Transparent Render Data ---
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
             _glPushMatrix
             _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0
-            For I = 1 To MaxChunks
+            For __I = 1 To CompletedChunks.Size
+                I = LongBuffer_Get(CompletedChunks, __I - 1)
                 tmpChunksVisible = tmpChunksVisible + _IIf((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
                 If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
                 J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
@@ -478,7 +480,7 @@ Sub _GL Static
                 _glDrawArrays _GL_QUADS, 0, Chunks(I).TransparentVerticesCount
                 _glPopMatrix
                 tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).TransparentVerticesCount, 2)
-            Next I
+            Next __I
             _glPopMatrix
             '----------------------------------------------
             ChunksVisible = tmpChunksVisible
@@ -539,14 +541,6 @@ Function glVec4%& (X!, Y!, Z!, W!)
 End Function
 '--- End of GL Code ---
 '$Include:'Chunk.bm'
-Sub LoadNextChunk ()
-    Dim As _Unsigned Long I
-    I = LongBuffer_Pop(Queue_ChunkLoad)
-    ST# = Timer(0.01)
-    LoadChunk I, Chunks(I)
-    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
-    LongBuffer_Push Queue_RenderLoad, I
-End Sub
 
 '--- Block Hash Table ---
 Function getHash~%% (T$)
@@ -582,7 +576,7 @@ Function getHeight! (X As Long, Z As Long)
     Dim As Long PX, PZ
     SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getHeight! = _Clamp(1, 1 + fractal2(PX, PZ, 256, 0, 0) * 256, 256)
+    getHeight! = _Clamp(1, 33 + fractal2(PX, PZ, 256, 7, 0) * 64, 256)
 End Function
 '--------------
 

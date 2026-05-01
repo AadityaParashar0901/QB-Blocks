@@ -75,6 +75,14 @@ End Sub
 Function getChunkID~& (X As Long, Z As Long) Static
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
+Sub LoadNextChunk ()
+    Dim As _Unsigned Long I
+    I = LongBuffer_Pop(Queue_ChunkLoad)
+    ST# = Timer(0.01)
+    LoadChunk I, Chunks(I)
+    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
+    LongBuffer_Push Queue_RenderLoad, I
+End Sub
 Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     Dim As Long CX, CZ, PX, PZ, X, Z, Y, Y_1
     Dim As Single Height, dHeight
@@ -101,7 +109,7 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
             Chunk.MinimumHeight = _Min(Chunk.MinimumHeight, Height - 2)
             dHeight = Height - Int(Height)
             Height = Int(Height)
-            For Y = Chunk.MinimumHeight - 1 To Chunk.MaximumHeight + 1
+            For Y = _Max(0, Chunk.MinimumHeight - 1) To _Min(Chunk.MaximumHeight + 1, 257)
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, Biome_Default)
                     Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome_Default)
@@ -127,10 +135,12 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     Chunk.DataLoaded = 253
 End Sub
 Sub RenderNextChunk ()
-    Dim ST#
+    Dim ST#, ChunkId As Long
     ST# = Timer(0.01)
-    RenderChunk LongBuffer_Pop(Queue_RenderLoad)
+    ChunkId = LongBuffer_Pop(Queue_RenderLoad)
+    RenderChunk ChunkId
     RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
+    LongBuffer_Push CompletedChunks, ChunkId
 End Sub
 Sub RenderChunk (ChunkId As _Unsigned Long)
     Dim As Long X, Y, Z, Y_1
@@ -204,7 +214,11 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                         Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
                         Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
                         VertexID = VertexID + 1
+                        If VertexID < MaxRenderPipelineSize Then _Continue
+			Write_Log "VertexID exceeded! " + _ToStr$(Chunks(ChunkId).X) + Str$(Chunks(ChunkId).Z)
+			Exit For
                     Next I
+                    If VertexID >= MaxRenderPipelineSize Then Exit For
         Next Z, X, Y
         VertexID = VertexID + 1
     Next Mode
@@ -216,6 +230,9 @@ Sub WipeChunk (ChunkId As _Unsigned Long)
     M = _Mem(_Offset(Chunks(ChunkId)), Len(Chunks(ChunkId)))
     _MemFill M, M.OFFSET, M.SIZE, 0 As _Byte
     _MemFree M
+    S& = LongBuffer_Search(CompletedChunks, ChunkId)
+    If S& = -1 Then Exit Sub
+    LongBuffer_Delete CompletedChunks, S&
 End Sub
 Function AmbientOcclusion~%% (X As _Byte, Y As Integer, Z As _Byte, vertexIndex As _Byte, ChunkId As _Unsigned Integer, CurrentLight As _Unsigned _Byte)
     $Checking:Off
