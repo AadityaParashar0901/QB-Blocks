@@ -1,4 +1,4 @@
-# QB Blocks 5
+# QB Blocks 6
 ### QB Blocks - The Official QB64 based Minecraft Clone
 *Made with OpenGL*
 
