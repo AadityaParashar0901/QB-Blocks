@@ -1,31 +1,31 @@
-Sub LongBuffer_Clear (A As LongBuffer) Static
+Sub LongBuffer_Clear (A As LongBuffer)
     A.Size = 0
 End Sub
-Sub LongBuffer_Push (A As LongBuffer, B As Long) Static
+Sub LongBuffer_Push (A As LongBuffer, B As Long)
     A.Size = A.Size + 1
     If Len(A.Buffer) < _ShL(A.Size, 2) Then A.Buffer = A.Buffer + String$(BufferSize, 0)
     Mid$(A.Buffer, _ShL(A.Size, 2) - 3, 4) = MKL$(B)
 End Sub
-Function LongBuffer_Pop& (A As LongBuffer) Static
-    Static T As Long: T = CVL(Left$(A.Buffer, 4))
+Function LongBuffer_Pop& (A As LongBuffer)
+    dim T As Long: T = CVL(Left$(A.Buffer, 4))
     A.Size = A.Size - 1
     A.Buffer = Mid$(A.Buffer, 5)
     LongBuffer_Pop = T
 End Function
-Sub LongBuffer_Append (A As LongBuffer, B As LongBuffer) Static
+Sub LongBuffer_Append (A As LongBuffer, B As LongBuffer)
     A.Buffer = Left$(A.Buffer, _ShL(A.Size, 2)) + B.Buffer
     A.Size = A.Size + B.Size
 End Sub
-Function LongBuffer_Get~& (A As LongBuffer, I As _Unsigned Long) Static ' 0 Indexed
+Function LongBuffer_Get~& (A As LongBuffer, I As _Unsigned Long)  ' 0 Indexed
     If I >= A.Size Then Exit Function
     LongBuffer_Get~& = CVL(Mid$(A.Buffer, _ShL(I, 2) + 1, 4))
 End Function
-Sub LongBuffer_Delete (A As LongBuffer, I As _Unsigned Long) Static
+Sub LongBuffer_Delete (A As LongBuffer, I As _Unsigned Long)
     A.Size = A.Size - 1
     A.Buffer = Left$(A.Buffer, _ShL(I, 2)) + Mid$(A.Buffer, _ShL(I, 2) + 5)
 End Sub
-Function LongBuffer_Search& (A As LongBuffer, L As _Unsigned Long) Static ' 0 Indexed
-    Static I As _Unsigned Long
+Function LongBuffer_Search& (A As LongBuffer, L As _Unsigned Long)  ' 0 Indexed
+    dim I As _Unsigned Long
     If A.Size Then
         For I = 0 To A.Size - 1
             If CVL(Mid$(A.Buffer, _ShL(I, 2) + 1, 4)) = L Then

@@ -75,42 +75,33 @@ End Sub
 Function getChunkID~& (X As Long, Z As Long) Static
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
-Sub LoadNextChunk ()
-    Dim ST#
-    ST# = Timer(0.001)
-    LoadChunk LongBuffer_Pop(Queue_ChunkLoad)
-    ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
-End Sub
-Sub LoadChunk (ChunkId As _Unsigned Long)
+Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     Dim As Long CX, CZ, PX, PZ, X, Z, Y, Y_1
     Dim As Single Height, dHeight
-    Dim As _Unsigned _Byte Block, Block_Water
+    Dim As _Unsigned _Byte Block
     Dim As _Unsigned _Byte isAirBlock, isTransparentBlock
-    If Block_Water = 0 Then
-        Block_Water = getBlockID("water")
-    End If
-    Select Case Chunks(ChunkId).DataLoaded
+    Select Case Chunk.DataLoaded
         Case 253 To 255: Exit Sub
             'Case 253: If LongBuffer_Search(Queue_RenderLoad, ChunkId) = -1 Then LongBuffer_Push Queue_RenderLoad, ChunkId
             '    Exit Sub
     End Select
-    CX = Chunks(ChunkId).X
-    CZ = Chunks(ChunkId).Z
+    CX = Chunk.X
+    CZ = Chunk.Z
     PX = CX * 16
     PZ = CZ * 16
-    Chunks(ChunkId).TX = PX
-    Chunks(ChunkId).TZ = PZ
-    Chunks(ChunkId).MinimumHeight = 256
-    Chunks(ChunkId).MaximumHeight = WaterLevel + 1
+    Chunk.TX = PX
+    Chunk.TZ = PZ
+    Chunk.MinimumHeight = 256
+    Chunk.MaximumHeight = WaterLevel + 1
     TransparentBlocksCount = 0
     For X = 0 To 17
         For Z = 0 To 17
             Height = getHeight(PX + X, PZ + Z)
-            Chunks(ChunkId).MaximumHeight = _Max(Height + 1, Chunks(ChunkId).MaximumHeight)
-            Chunks(ChunkId).MinimumHeight = _Min(Chunks(ChunkId).MinimumHeight, Height - 2)
+            Chunk.MaximumHeight = _Max(Height + 1, Chunk.MaximumHeight)
+            Chunk.MinimumHeight = _Min(Chunk.MinimumHeight, Height - 2)
             dHeight = Height - Int(Height)
             Height = Int(Height)
-            For Y = Chunks(ChunkId).MinimumHeight - 1 To Chunks(ChunkId).MaximumHeight + 1
+            For Y = Chunk.MinimumHeight - 1 To Chunk.MaximumHeight + 1
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, Biome_Default)
                     Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome_Default)
@@ -122,19 +113,18 @@ Sub LoadChunk (ChunkId As _Unsigned Long)
                 isTransparentBlock = isTransparent(Block)
                 Y_1 = Y - 1
                 If Y_1 >= 0 And Y_1 <= 255 Then
-                    Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) Or _ShL(isAirBlock, Y_1 And 7)
-                    Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) Or _ShL(isTransparentBlock And (Block <> 0), Y_1 And 7)
-                    Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) Or _ShL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
+                    Chunk.dirtyBit_AirBlock(_ShR(Y_1, 3)) = Chunk.dirtyBit_AirBlock(_ShR(Y_1, 3)) Or _ShL(isAirBlock, Y_1 And 7)
+                    Chunk.dirtyBit_TransparentBlock(_ShR(Y_1, 3)) = Chunk.dirtyBit_TransparentBlock(_ShR(Y_1, 3)) Or _ShL(isTransparentBlock And (Block <> 0), Y_1 And 7)
+                    Chunk.dirtyBit_SolidBlock(_ShR(Y_1, 3)) = Chunk.dirtyBit_SolidBlock(_ShR(Y_1, 3)) Or _ShL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
                 End If
-                Chunks(ChunkId).Blocks(X, Y, Z) = Block
+                Chunk.Blocks(X, Y, Z) = Block
                 TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
             Next Y
     Next Z, X
-    Chunks(ChunkId).MaximumHeight = _Clamp(1, Chunks(ChunkId).MaximumHeight, 256)
-    Chunks(ChunkId).MinimumHeight = _Clamp(1, Chunks(ChunkId).MinimumHeight, 256)
-    If TransparentBlocksCount = 0 Then Chunks(ChunkId).DataLoaded = 255: Exit Sub
-    Chunks(ChunkId).DataLoaded = 253
-    LongBuffer_Push Queue_RenderLoad, ChunkId
+    Chunk.MaximumHeight = _Clamp(1, Chunk.MaximumHeight, 256)
+    Chunk.MinimumHeight = _Clamp(1, Chunk.MinimumHeight, 256)
+    If TransparentBlocksCount = 0 Then Chunk.DataLoaded = 255: Exit Sub
+    Chunk.DataLoaded = 253
 End Sub
 Sub RenderNextChunk ()
     Dim ST#

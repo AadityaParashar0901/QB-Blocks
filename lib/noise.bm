@@ -1,23 +1,23 @@
 $Checking:Off
-Function perm2! (X As Long, Y As Long, M As _Unsigned _Byte) Static
-    Static As Long h
+Function perm2! (X As Long, Y As Long, M As _Unsigned _Byte)
+    Dim As Long h
     h = X * 73856093 Xor Y * 19349663 Xor M + Seed * 193
-    h = (h Xor _SHR(h, 13)) * 60493
-    h = h Xor _SHR(h, 16)
+    h = (h Xor _ShR(h, 13)) * 60493
+    h = h Xor _ShR(h, 16)
     perm2! = (h And 2147483647) / 2147483647
 End Function
-Function perm3! (X As Long, Y As Long, Z As Long, M As _Unsigned _Byte) Static
-    Static As _Unsigned Long h
+Function perm3! (X As Long, Y As Long, Z As Long, M As _Unsigned _Byte)
+    Dim As _Unsigned Long h
     h = X * 73856093 Xor Y * 19349663 Xor Z * 83492791 Xor M + Seed
-    h = (h Xor _SHR(h, 13)) * 60493
-    h = h Xor _SHR(h, 16)
+    h = (h Xor _ShR(h, 13)) * 60493
+    h = h Xor _ShR(h, 16)
     perm3! = (h And 2147483647) / 2147483647
 End Function
-Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte) Static
-    Static As Double amplitude, total, maxAmplitude, scale
-    Static As Single tX, tY
-    Static As _Byte i
-    Static fX&, fY&, fX1&, fY1&, dX!, n00!, n01!, i1!
+Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte)
+    Dim As Double amplitude, total, maxAmplitude, scale
+    Dim As Single tX, tY
+    Dim As _Byte i
+    Dim fX&, fY&, fX1&, fY1&, dX!, n00!, n01!, i1!
     amplitude = 1: total = 0: maxAmplitude = 0: scale = 1 / S
     For i = 0 To O
         tX = X * scale
@@ -37,11 +37,11 @@ Function fractal2! (X As Long, Y As Long, S As _Unsigned Long, O As _Unsigned _B
     Next i
     fractal2! = total / maxAmplitude
 End Function
-Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte) Static
-    Static As Double amplitude, total, maxAmplitude, scale
-    Static As Single tX, tY, tZ
-    Static As _Byte i
-    Static fX&, fY&, fZ&, fX1&, fY1&, fZ1&, dX!, dY!, n000!, n010!, n001!, n011!, i01!, i11!, n1!
+Function fractal3! (X As Long, Y As Long, Z As Long, S As _Unsigned Long, O As _Unsigned _Byte, M As _Unsigned _Byte)
+    Dim As Double amplitude, total, maxAmplitude, scale
+    Dim As Single tX, tY, tZ
+    Dim As _Byte i
+    Dim fX&, fY&, fZ&, fX1&, fY1&, fZ1&, dX!, dY!, n000!, n010!, n001!, n011!, i01!, i11!, n1!
     amplitude = 1: total = 0: maxAmplitude = 0: scale = 1 / S
     For i = 0 To O
         tX = X * scale
