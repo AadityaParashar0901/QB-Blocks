@@ -98,6 +98,8 @@ End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
 
+Dim Shared As _Unsigned _Byte GlobalHeightMap(-RenderDistance * 16 To RenderDistance * 16, -RenderDistance * 16 To RenderDistance * 16)
+
 Dim Shared As LongBuffer Queue_ChunkLoad, Queue_RenderLoad
 Dim Shared As _Byte NeedToBuild_ChunkQueue
 Dim Shared As LongBuffer CompletedChunks
@@ -593,12 +595,12 @@ End Function
 '------------------------
 
 '--- Terrain ---
-Function getHeight! (X As Long, Z As Long)
+Function getHeight~%% (X As Long, Z As Long)
     Dim As Integer SX, SZ
     Dim As Long PX, PZ
     SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getHeight! = _Clamp(1, 33 + fractal2(PX, PZ, 64, 3, 0) * 64, 256)
+    getHeight~%% = _Clamp(1, 33 + fractal2(PX, PZ, 64, 3, 0) * 64, 256)
 End Function
 '--------------
 

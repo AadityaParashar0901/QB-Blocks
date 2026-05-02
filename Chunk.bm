@@ -45,6 +45,15 @@ Sub Build_ChunkQueue Static
             End Select
         Next I
     Next R
+    tmpChunksStart.X = tmpChunksStart.X * 16 - 17
+    tmpChunksStart.Z = tmpChunksStart.Z * 16 - 17
+    tmpChunksEnd.X = tmpChunksEnd.X * 16 + 33
+    tmpChunksEnd.Z = tmpChunksEnd.Z * 16 + 33
+    ReDim _Retain GlobalHeightMap(tmpChunksStart.X To tmpChunksEnd.X, tmpChunksStart.Z To tmpChunksEnd.Z) As _Unsigned _Byte
+    For X = tmpChunksStart.X To tmpChunksEnd.X
+        For Z = tmpChunksStart.Z To tmpChunksEnd.Z
+            If GlobalHeightMap(X, Z) = 0 Then GlobalHeightMap(X, Z) = getHeight(X, Z)
+    Next Z, X
     For R = RenderDistance + 1 To MaxRenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
@@ -104,7 +113,7 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     TransparentBlocksCount = 0
     For X = 0 To 17
         For Z = 0 To 17
-            Height = getHeight(PX + X, PZ + Z)
+            Height = GlobalHeightMap(PX + X, PZ + Z)
             Chunk.MaximumHeight = _Max(Height + 1, Chunk.MaximumHeight)
             Chunk.MinimumHeight = _Min(Chunk.MinimumHeight, Height - 2)
             dHeight = Height - Int(Height)
@@ -117,7 +126,7 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
                     Case Else: Block = 0
                 End Select
                 If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
-                If Y = 1 Then Block = getBlockId("bedrock")
+                If Y = 1 Then Block = getBlockID("bedrock")
                 isAirBlock = _IIf(Block, 0, 1)
                 isTransparentBlock = isTransparent(Block)
                 Y_1 = Y - 1
