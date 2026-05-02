@@ -25,7 +25,7 @@ End Type
 '--- Game Build Settings ---
 Const GameVersion = 6.0
 
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 32
 Const WaterLevel = 64
 Const UseDefaultFont = -1
 '---------------------------
@@ -41,7 +41,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
-RenderDistance = 8
+RenderDistance = 32
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -90,7 +90,7 @@ Dim Shared VEC4(3) As Single
 '--- Chunks ---
 Type Chunk
     As Long X, Z, TX, TZ
-    As _Unsigned _Byte DataLoaded
+    As _Unsigned _Byte DataLoaded, LOD
     As _Unsigned Integer VerticesCount, TransparentVerticesCount, MinimumHeight, MaximumHeight
     As _Unsigned _Byte dirtyBit_AirBlock(0 to 31), dirtyBit_TransparentBlock(0 to 31), dirtyBit_SolidBlock(0 to 31)
     As _Unsigned _Byte Blocks(0 to 17, 0 to 257, 0 to 17)
