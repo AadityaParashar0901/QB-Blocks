@@ -117,6 +117,7 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
                     Case Else: Block = 0
                 End Select
                 If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
+                If Y = 1 Then Block = getBlockId("bedrock")
                 isAirBlock = _IIf(Block, 0, 1)
                 isTransparentBlock = isTransparent(Block)
                 Y_1 = Y - 1
@@ -215,8 +216,8 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                         Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
                         VertexID = VertexID + 1
                         If VertexID < MaxRenderPipelineSize Then _Continue
-			Write_Log "VertexID exceeded! " + _ToStr$(Chunks(ChunkId).X) + Str$(Chunks(ChunkId).Z)
-			Exit For
+                        Write_Log "VertexID exceeded! " + _ToStr$(Chunks(ChunkId).X) + Str$(Chunks(ChunkId).Z)
+                        Exit For
                     Next I
                     If VertexID >= MaxRenderPipelineSize Then Exit For
         Next Z, X, Y

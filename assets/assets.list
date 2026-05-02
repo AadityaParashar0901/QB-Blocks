@@ -23,6 +23,7 @@ textures {
 	cobblestone;
 	mossy_cobblestone;
 	deepslate;
+	bedrock;
 	water_still;
 }
 blocks {
@@ -42,5 +43,6 @@ blocks {
 	name = "cobblestone", textures = 20;
 	name = "mossy_cobblestone", textures = 21;
 	name = "deepslate", textures = 22;
-	name = "water", textures = 23, transparent, omit;
+	name = "bedrock", textures = 23;
+	name = "water", textures = 24, transparent, omit;
 }

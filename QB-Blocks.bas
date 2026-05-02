@@ -33,7 +33,7 @@ Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
 Const MaxChunks = MaxRenderDistanceX * MaxRenderDistanceZ
 Write_Log "Max Chunks: " + _Trim$(Str$(MaxChunks))
-Const ChunkDataSize = 4096
+Const ChunkDataSize = 16384
 Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 
 '--- Game Default Settings ---
@@ -41,7 +41,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
-RenderDistance = MaxRenderDistance
+RenderDistance = 8
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -63,6 +63,11 @@ Const CONST_GL_STATE_Show_FPS = 6
 Const CONST_GL_STATE_Show_Debug_Menu = 7
 Const CONST_GL_STATE_Show_Loading_Menu = 8
 Dim Shared As String GL_Loading_Menu_Message
+Type GLProgressInfo
+    As _Unsigned _Byte Enable
+    As _Unsigned Long Current, Total
+End Type
+Dim Shared GL_Loading_Menu_Progress As GLProgressInfo
 
 _GLRender _Behind
 
@@ -187,6 +192,15 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 '--- Start Game ---
 GL_Loading_Menu_Message = "Building Chunks"
 Build_ChunkQueue
+GL_Loading_Menu_Message = "Loading Chunks"
+GL_Loading_Menu_Progress.Enable = -1
+GL_Loading_Menu_Progress.Total = Queue_ChunkLoad.Size
+While Queue_ChunkLoad.Size Or Queue_RenderLoad.Size
+    GL_Loading_Menu_Progress.Current = GL_Loading_Menu_Progress.Total - Queue_ChunkLoad.Size
+    If Queue_ChunkLoad.Size Then LoadNextChunk
+    If Queue_RenderLoad.Size Then RenderNextChunk
+Wend
+GL_Loading_Menu_Progress.Enable = 0
 GL_Loading_Menu_Message = "Starting Game"
 Build_Clouds
 Timer(FPSCounterTimer) On
@@ -509,7 +523,15 @@ Sub _GL Static
     Cls , 0
     Select Case GL_EXTRA_STATE
         Case CONST_GL_STATE_Show_Loading_Menu
-            PrintString ScreenWidth / 2 - 8 * Len(LoadingMessage), ScreenHeight / 2 - 8, GL_Loading_Menu_Message, White
+            PrintString (ScreenWidth - _PrintWidth(GL_Loading_Menu_Message)) / 2, (ScreenHeight - _FontHeight) / 2, GL_Loading_Menu_Message, White
+            If GL_Loading_Menu_Progress.Enable Then
+                P! = GL_Loading_Menu_Progress.Current / GL_Loading_Menu_Progress.Total
+                ProgressWidth = _Max(ScreenWidth * 0.4, 100)
+                ProgressX = (ScreenWidth - ProgressWidth) / 2
+                ProgressY = ScreenHeight / 2 + _FontHeight
+                Line (ProgressX - 1, ProgressY - 1)-(ProgressX + 1, ProgressY + 5), -1, B
+                Line (ProgressX, ProgressY)-(ProgressX + ProgressWidth * P!, ProgressY + 4), _RGB32(0, 255, 0), BF
+            End If
             _Display
 
         Case CONST_GL_STATE_Show_FPS, CONST_GL_STATE_Show_Debug_Menu
@@ -576,7 +598,7 @@ Function getHeight! (X As Long, Z As Long)
     Dim As Long PX, PZ
     SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getHeight! = _Clamp(1, 33 + fractal2(PX, PZ, 256, 7, 0) * 64, 256)
+    getHeight! = _Clamp(1, 33 + fractal2(PX, PZ, 64, 3, 0) * 64, 256)
 End Function
 '--------------
 
