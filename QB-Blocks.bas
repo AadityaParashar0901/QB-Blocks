@@ -531,7 +531,7 @@ Sub _GL Static
                 ProgressWidth = _Max(ScreenWidth * 0.4, 100)
                 ProgressX = (ScreenWidth - ProgressWidth) / 2
                 ProgressY = ScreenHeight / 2 + _FontHeight
-                Line (ProgressX - 1, ProgressY - 1)-(ProgressX + 1, ProgressY + 5), -1, B
+                Line (ProgressX - 1, ProgressY - 1)-(ProgressX + ProgressWidth + 1, ProgressY + 5), -1, B
                 Line (ProgressX, ProgressY)-(ProgressX + ProgressWidth * P!, ProgressY + 4), _RGB32(0, 255, 0), BF
             End If
             _Display
