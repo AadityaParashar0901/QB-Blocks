@@ -180,7 +180,7 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
     For Mode = 0 To 1
         YStart = Chunks(ChunkId).MinimumHeight And Not (LODStep - 1)
         YEnd = Chunks(ChunkId).MaximumHeight
-        For Y = YStart To YEnd Step LODStep
+        For Y = YStart To YEnd
             Y_1 = Y - 1
             CurrentLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or_
                 _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or_
@@ -228,7 +228,7 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                             Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
                         End Select
                         Vertices(VertexID).X = X + CubeVertices(I).X * LODStep
-                        Vertices(VertexID).Y = Y + CubeVertices(I).Y * LODStep
+                        Vertices(VertexID).Y = Y + CubeVertices(I).Y
                         Vertices(VertexID).Z = Z + CubeVertices(I).Z * LODStep
                         TextureCoords(VertexID).X = CubeTextureCoords(I).X
                         TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight

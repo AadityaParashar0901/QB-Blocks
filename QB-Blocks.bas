@@ -300,7 +300,7 @@ Sub Build_Clouds
                     Case 5: If GetColorAtPosition&(CloudsImage, __X, __Z - 1) Then _Continue
                 End Select
                 CloudVertices(TotalClouds).X = (__X - hW) * 16 + _ShL(CubeVertices(__I%).X, 4): CloudVertices(TotalClouds).Y = CloudsHeight + _ShL(CubeVertices(__I%).Y, 2): CloudVertices(TotalClouds).Z = (__Z - hH) * 16 + _ShL(CubeVertices(__I%).Z, 4)
-                CloudColors(TotalClouds).X = 255: CloudColors(TotalClouds).Y = 255: CloudColors(TotalClouds).Z = 255: CloudColors(TotalClouds).W = 191 ' _RGBA(255, 255, 255, 191)
+                CloudColors(TotalClouds).X = 255: CloudColors(TotalClouds).Y = 255: CloudColors(TotalClouds).Z = 255: CloudColors(TotalClouds).W = 127 ' _RGBA(255, 255, 255, 127)
                 TotalClouds = TotalClouds + 1
             Next __I%
     Next __Z, __X
