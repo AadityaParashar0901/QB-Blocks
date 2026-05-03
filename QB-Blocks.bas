@@ -26,7 +26,6 @@ End Type
 Const GameVersion = 6.0
 
 Const MaxRenderDistance = 32
-Const LODSize = 4
 Const WaterLevel = 64
 Const UseDefaultFont = -1
 '---------------------------
@@ -42,7 +41,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
-RenderDistance = 32
+RenderDistance = 16
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -72,19 +71,14 @@ Dim Shared GL_Loading_Menu_Progress As GLProgressInfo
 
 _GLRender _Behind
 
-' All Quads Rendering Data
-Dim Shared Vertices(0 To MaxRenderPipelineSize - 1) As Vec3_Int
-Dim Shared TextureCoords(0 To MaxRenderPipelineSize - 1) As Vec2_Float
-Dim Shared Colors(0 To MaxRenderPipelineSize - 1) As Vec3_Byte
-
 Type Ring
     As Vec3_Float Vertices(0 To 802815)
     As Vec2_Float TextureCoords(0 To 802815)
     As Vec3_Byte Colors(0 To 802815)
     As _Unsigned Long TotalVertices
 End Type
-Dim Shared As Ring Rings(0 To RenderDistance / LODSize)
-Dim Shared As Ring TransparentRings(0 To RenderDistance / LODSize)
+Dim Shared As Ring Rings(0 To RenderDistance \ 8)
+Dim Shared As Ring TransparentRings(0 To RenderDistance \ 8)
 
 Dim Shared CubeVertices(0 To 23) As Vec3_Byte
 Dim Shared CubeTextureCoords(0 To 23) As Vec2_Float
@@ -372,7 +366,7 @@ Sub _GL Static
     Static As Long GL_TextureAtlas_Handle
     Static As _Unsigned Long tmpChunksVisible, tmpQuadsVisible: tmpChunksVisible = 0: tmpQuadsVisible = 0
     Static As _Unsigned Long ChunksVisible, QuadsVisible
-    Static As Long I, J
+    Static As Long I
     Static As _Unsigned _Byte NewFov, Zoom
     Static As Single TransparentTranslateY
     On Error GoTo GLErrHandler
@@ -452,7 +446,7 @@ Sub _GL Static
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
             NewFov = NewFov + Sgn(Fov - Zoom * (Fov - 30) - NewFov)
-            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 16384
+            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 1024
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
 
