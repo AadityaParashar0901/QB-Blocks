@@ -158,59 +158,64 @@ Sub RenderNextChunk ()
     Dim ST#, ChunkId As Long
     ST# = Timer(0.01)
     ChunkId = LongBuffer_Pop(Queue_RenderLoad)
-    RenderChunk ChunkId
+    RenderChunk ChunkId, Chunks(ChunkId)
     RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
     LongBuffer_Push CompletedChunks, ChunkId
 End Sub
-Sub RenderChunk (ChunkId As _Unsigned Long)
+Sub RenderChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     Dim As Long X, Y, Z, Y_1
     Dim As _Unsigned Long VertexID
-    Dim As _Unsigned Long J, TextureID, TextureOffset
+    Dim As _Unsigned Long I, J, TextureID, TextureOffset
     Dim As _Unsigned _Byte Block, Visibility, Face, Light
     Dim As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
     Dim As _Unsigned _Byte CurrentLayer, BelowLayer, AboveLayer, LODStep
     Dim As _Unsigned Integer YStart, YEnd
-    If Chunks(ChunkId).DataLoaded < 253 Then Exit Sub
-    If Chunks(ChunkId).DataLoaded = 255 Then Exit Sub
+    If Chunk.DataLoaded < 253 Then Exit Sub
+    If Chunk.DataLoaded = 255 Then Exit Sub
     J = ChunkId - 1
     VertexID = ChunkDataSize * J
-    Chunks(ChunkId).VerticesCount = 0
-    Chunks(ChunkId).TransparentVerticesCount = 0
-    LODStep = _ShL(1, Chunks(ChunkId).LOD)
+    Chunk.VerticesCount = 0
+    Chunk.TransparentVerticesCount = 0
+    LODStep = _ShL(1, Chunk.LOD)
     For Mode = 0 To 1
-        YStart = Chunks(ChunkId).MinimumHeight And Not (LODStep - 1)
-        YEnd = Chunks(ChunkId).MaximumHeight
+        YStart = Chunk.MinimumHeight And Not (LODStep - 1)
+        YEnd = Chunk.MaximumHeight
         For Y = YStart To YEnd
             Y_1 = Y - 1
-            CurrentLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or_
-                _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or_
-                -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
+            CurrentLayer = _ShL(-_ReadBit(Chunk.dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or_
+                _ShL(-_ReadBit(Chunk.dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or_
+                -_ReadBit(Chunk.dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
             If Y > 1 Then
                 Y_1 = Y - 2
-                BelowLayer = _SHL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_SHR(Y_1, 3)), Y_1 And 7), 2) Or_
-                    _SHL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_SHR(Y_1, 3)), Y_1 And 7), 1) Or_
-                    -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_SHR(Y_1, 3)), Y_1 And 7)
+                BelowLayer = _SHL(-_ReadBit(Chunk.dirtyBit_AirBlock(_SHR(Y_1, 3)), Y_1 And 7), 2) Or_
+                    _SHL(-_ReadBit(Chunk.dirtyBit_TransparentBlock(_SHR(Y_1, 3)), Y_1 And 7), 1) Or_
+                    -_ReadBit(Chunk.dirtyBit_SolidBlock(_SHR(Y_1, 3)), Y_1 And 7)
             Else BelowLayer = 0
             End If
             If Y < 256 Then
                 Y_1 = Y
-                AboveLayer = _SHL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_SHR(Y_1, 3)), Y_1 And 7), 2) Or_
-                    _SHL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_SHR(Y_1, 3)), Y_1 And 7), 1) Or_
-                    -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_SHR(Y_1, 3)), Y_1 And 7)
+                AboveLayer = _SHL(-_ReadBit(Chunk.dirtyBit_AirBlock(_SHR(Y_1, 3)), Y_1 And 7), 2) Or_
+                    _SHL(-_ReadBit(Chunk.dirtyBit_TransparentBlock(_SHR(Y_1, 3)), Y_1 And 7), 1) Or_
+                    -_ReadBit(Chunk.dirtyBit_SolidBlock(_SHR(Y_1, 3)), Y_1 And 7)
             Else AboveLayer = 0
             End If
             LayerCombination = CurrentLayer Or BelowLayer Or AboveLayer
             If LayerCombination < 3 Then _Continue
             For X = 1 To 17 - LODStep Step LODStep
                 For Z = 1 To 17 - LODStep Step LODStep
-                    Block = Chunks(ChunkId).Blocks(X, Y, Z)
+                    Block = Chunk.Blocks(X, Y, Z)
                     If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
-                    Visibility = isTransparent(Chunks(ChunkId).Blocks(X + LODStep, Y, Z)) Or_
-                        _SHL(isTransparent(Chunks(ChunkId).Blocks(X - 1, Y, Z)), 1) Or_
-                        _SHL(isTransparent(Chunks(ChunkId).Blocks(X, Y + LODStep, Z)), 2) Or_
-                        _SHL(isTransparent(Chunks(ChunkId).Blocks(X, Y - 1, Z)), 3) Or_
-                        _SHL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z + LODStep)), 4) Or_
-                        _SHL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z - 1)), 5)
+                    Visibility = 0
+                    For I = 0 To LODStep - 1
+                        Visibility = Visibility Or isTransparent(Chunk.Blocks(X + LODStep, Y, Z + I))
+                        Visibility = Visibility Or _ShL(isTransparent(Chunk.Blocks(X - 1, Y, Z + I)), 1)
+                        For J = 0 To LODStep - 1
+                            Visibility = Visibility Or _ShL(isTransparent(Chunk.Blocks(X + I, Y + LODStep, Z + J)), 2)
+                            Visibility = Visibility Or _ShL(isTransparent(Chunk.Blocks(X + I, Y - 1, Z + J)), 3)
+                        Next J
+                        Visibility = Visibility Or _ShL(isTransparent(Chunk.Blocks(X + I, Y, Z + LODStep)), 4)
+                        Visibility = Visibility Or _ShL(isTransparent(Chunk.Blocks(X + I, Y, Z - 1)), 5)
+                    Next I
                     If Visibility = 0 Then _Continue
                     For I = 0 To 23
                         Face = _ShR(I, 2)
@@ -220,12 +225,12 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                         TextureOffset = Textures(TextureID).Y
                         omitSimilarFace = omitBlockFace(Block, Face)
                         Select Case Face
-                            Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
-                            Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
-                            Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
-                            Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
-                            Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
-                            Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
+                            Case 0: Light = 9: If omitSimilarFace And Block = Chunk.Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
+                            Case 1: Light = 9: If omitSimilarFace And Block = Chunk.Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
+                            Case 2: Light = 15: If omitSimilarFace And Block = Chunk.Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
+                            Case 3: Light = 7: If omitSimilarFace And Block = Chunk.Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
+                            Case 4: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
+                            Case 5: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
                         End Select
                         Vertices(VertexID).X = X + CubeVertices(I).X * LODStep
                         Vertices(VertexID).Y = Y + CubeVertices(I).Y
@@ -235,11 +240,11 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                         Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkId, _Clamp(0, 15 - Light, 15))
                         Colors(VertexID).Y = Colors(VertexID).X
                         Colors(VertexID).Z = Colors(VertexID).X
-                        Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
-                        Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
+                        Chunk.TransparentVerticesCount = Chunk.TransparentVerticesCount - (Mode = 1)
+                        Chunk.VerticesCount = Chunk.VerticesCount - (Mode = 0)
                         VertexID = VertexID + 1
                         If VertexID < MaxRenderPipelineSize Then _Continue
-                        Write_Log "VertexID exceeded! " + _ToStr$(Chunks(ChunkId).X) + Str$(Chunks(ChunkId).Z)
+                        Write_Log "VertexID exceeded! " + _ToStr$(Chunk.X) + Str$(Chunk.Z)
                         Exit For
                     Next I
                     If VertexID >= MaxRenderPipelineSize Then Exit For
@@ -247,7 +252,7 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
         VertexID = VertexID + 1
     Next Mode
     TotalChunksLoaded = TotalChunksLoaded + 1
-    Chunks(ChunkId).DataLoaded = 255
+    Chunk.DataLoaded = 255
 End Sub
 Sub WipeChunk (ChunkId As _Unsigned Long)
     Dim M As _MEM
