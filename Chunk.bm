@@ -241,15 +241,17 @@ Sub RenderChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
                         TextureID = Asc(Blocks(Block).Faces, Face + 1)
                         If TextureID = 0 Then I = I + 3: _Continue
                         TextureOffset = Textures(TextureID).Y
-                        omitSimilarFace = omitBlockFace(Block, Face)
-                        Select Case Face
-                            Case 0: Light = 9: If omitSimilarFace And Block = Chunk.Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
-                            Case 1: Light = 9: If omitSimilarFace And Block = Chunk.Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
-                            Case 2: Light = 15: If omitSimilarFace And Block = Chunk.Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
-                            Case 3: Light = 7: If omitSimilarFace And Block = Chunk.Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
-                            Case 4: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
-                            Case 5: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
-                        End Select
+                        If (I And 3) = 0 Then
+                            omitSimilarFace = omitBlockFace(Block, Face)
+                            Select Case Face
+                                Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
+                                Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
+                                Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
+                                Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
+                                Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
+                                Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then Exit For
+                            End Select
+                        End If
                         Select Case Mode
                             Case 0
                                 Rings(RingId).Vertices(VertexID).X = PX + X + CubeVertices(I).X * LODStep
