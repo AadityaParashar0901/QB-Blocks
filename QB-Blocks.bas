@@ -26,6 +26,7 @@ End Type
 Const GameVersion = 6.0
 
 Const MaxRenderDistance = 32
+Const LODSize = 4
 Const WaterLevel = 64
 Const UseDefaultFont = -1
 '---------------------------
@@ -75,6 +76,15 @@ _GLRender _Behind
 Dim Shared Vertices(0 To MaxRenderPipelineSize - 1) As Vec3_Int
 Dim Shared TextureCoords(0 To MaxRenderPipelineSize - 1) As Vec2_Float
 Dim Shared Colors(0 To MaxRenderPipelineSize - 1) As Vec3_Byte
+
+Type Ring
+    As Vec3_Float Vertices(0 To 802815)
+    As Vec2_Float TextureCoords(0 To 802815)
+    As Vec3_Byte Colors(0 To 802815)
+    As _Unsigned Long TotalVertices
+End Type
+Dim Shared As Ring Rings(0 To RenderDistance / LODSize)
+Dim Shared As Ring TransparentRings(0 To RenderDistance / LODSize)
 
 Dim Shared CubeVertices(0 To 23) As Vec3_Byte
 Dim Shared CubeTextureCoords(0 To 23) As Vec2_Float
@@ -464,18 +474,12 @@ Sub _GL Static
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             '--- Render Chunks' Opaque Render Data ---
-            For __I = 1 To CompletedChunks.Size
-                I = LongBuffer_Get(CompletedChunks, __I - 1)
-                If Chunks(I).VerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
-                J = (I - 1) * ChunkDataSize
-                _glPushMatrix
-                _glTranslatef Chunks(I).TX, 0, Chunks(I).TZ
-                _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J))
-                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TextureCoords(J))
-                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
-                _glDrawArrays _GL_QUADS, 0, Chunks(I).VerticesCount
-                _glPopMatrix
-                tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).VerticesCount, 2)
+            For __I = 0 To UBound(Rings)
+                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(Rings(__I).Vertices())
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(Rings(__I).TextureCoords())
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Rings(__I).Colors())
+                _glDrawArrays _GL_QUADS, 0, Rings(__I).TotalVertices
+                tmpQuadsVisible = tmpQuadsVisible + _ShR(Rings(__I).TotalVertices, 2)
             Next __I
             '-----------------------------------------
 
@@ -483,20 +487,13 @@ Sub _GL Static
             TransparentTranslateY = ClampCycle(0, TransparentTranslateY + 0.01, _Pi(2))
             _glPushMatrix
             _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0
-            For __I = 1 To CompletedChunks.Size
-                I = LongBuffer_Get(CompletedChunks, __I - 1)
-                tmpChunksVisible = tmpChunksVisible + _IIf((Chunks(I).TransparentVerticesCount Or Chunks(I).VerticesCount) And (Chunks(I).DataLoaded = 255), 1, 0)
-                If Chunks(I).TransparentVerticesCount = 0 Or Chunks(I).DataLoaded <> 255 Then _Continue
-                J = (I - 1) * ChunkDataSize + Chunks(I).VerticesCount + 1
-                _glPushMatrix
-                _glTranslatef Chunks(I).TX, 0, Chunks(I).TZ
-                _glVertexPointer 3, _GL_SHORT, 0, _Offset(Vertices(J))
-                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TextureCoords(J))
-                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Colors(J))
-                _glDrawArrays _GL_QUADS, 0, Chunks(I).TransparentVerticesCount
-                _glPopMatrix
-                tmpQuadsVisible = tmpQuadsVisible + _ShR(Chunks(I).TransparentVerticesCount, 2)
-            Next __I
+            For I = 0 To UBound(TransparentRings)
+                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(TransparentRings(I).Vertices())
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TransparentRings(I).TextureCoords())
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(TransparentRings(I).Colors())
+                _glDrawArrays _GL_QUADS, 0, TransparentRings(I).TotalVertices
+                tmpQuadsVisible = tmpQuadsVisible + _ShR(TransparentRings(I).TotalVertices, 2)
+            Next I
             _glPopMatrix
             '----------------------------------------------
             ChunksVisible = tmpChunksVisible

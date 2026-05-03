@@ -4,12 +4,16 @@ Sub Build_ChunkQueue Static
     Static As _Unsigned _Byte LOD
     Static ChunkId As _Unsigned Long
     LongBuffer_Clear Queue_ChunkLoad
+    For I = 0 To UBound(Rings)
+        Rings(I).TotalVertices = 0
+        TransparentRings(I).TotalVertices = 0
+    Next I
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
         tmpChunksEnd.X = PlayerChunk.X + R
         tmpChunksEnd.Z = PlayerChunk.Z + R
-        LOD = _ShR(R, 3)
+        LOD = R / LODSize
         For I = 0 To 3
             Select Case I
                 Case 0: Z = tmpChunksStart.Z
@@ -20,6 +24,7 @@ Sub Build_ChunkQueue Static
             Select Case I And 1
                 Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
                         ChunkId = getChunkID(X, Z)
+                        Chunks(ChunkId).DataLoaded = _Min(253, Chunks(ChunkId).DataLoaded)
                         IsDifferentChunk = Chunks(ChunkId).X <> X Or Chunks(ChunkId).Z <> Z Or Chunks(ChunkId).LOD <> LOD
                         If IsDifferentChunk Or Chunks(ChunkId).DataLoaded < 253 Then
                             If Chunks(ChunkId).DataLoaded = 255 Then
@@ -30,10 +35,14 @@ Sub Build_ChunkQueue Static
                             Chunks(ChunkId).X = X: Chunks(ChunkId).Z = Z
                             Chunks(ChunkId).LOD = LOD
                             LongBuffer_Push Queue_ChunkLoad, ChunkId
+                        Else
+                            TotalChunksLoaded = TotalChunksLoaded - 1
+                            If LongBuffer_Search(Queue_RenderLoad, ChunkId) = -1 Then LongBuffer_Push Queue_RenderLoad, ChunkId
                         End If
                     Next X
                 Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
                         ChunkId = getChunkID(X, Z)
+                        Chunks(ChunkId).DataLoaded = _Min(253, Chunks(ChunkId).DataLoaded)
                         IsDifferentChunk = Chunks(ChunkId).X <> X Or Chunks(ChunkId).Z <> Z Or Chunks(ChunkId).LOD <> LOD
                         If IsDifferentChunk Or Chunks(ChunkId).DataLoaded < 253 Then
                             If Chunks(ChunkId).DataLoaded = 255 Then
@@ -44,6 +53,9 @@ Sub Build_ChunkQueue Static
                             Chunks(ChunkId).X = X: Chunks(ChunkId).Z = Z
                             Chunks(ChunkId).LOD = LOD
                             LongBuffer_Push Queue_ChunkLoad, ChunkId
+                        Else
+                            TotalChunksLoaded = TotalChunksLoaded - 1
+                            If LongBuffer_Search(Queue_RenderLoad, ChunkId) = -1 Then LongBuffer_Push Queue_RenderLoad, ChunkId
                         End If
                     Next Z
             End Select
@@ -56,7 +68,7 @@ Sub Build_ChunkQueue Static
     ReDim _Retain GlobalHeightMap(tmpChunksStart.X To tmpChunksEnd.X, tmpChunksStart.Z To tmpChunksEnd.Z) As _Unsigned _Byte
     For X = tmpChunksStart.X To tmpChunksEnd.X
         For Z = tmpChunksStart.Z To tmpChunksEnd.Z
-            'LOD = _ShR(_Max(Abs(X - PlayerChunk.X * 16), Abs(Z - PlayerChunk.Z * 16)), 6)
+             'LOD = _ShR(_Max(Abs(X - PlayerChunk.X * 16), Abs(Z - PlayerChunk.Z * 16)), 4) / LODSize
             If GlobalHeightMap(X, Z) = 0 Then GlobalHeightMap(X, Z) = getHeight(X, Z)
     Next Z, X
     For R = RenderDistance + 1 To MaxRenderDistance
@@ -160,24 +172,28 @@ Sub RenderNextChunk ()
     ChunkId = LongBuffer_Pop(Queue_RenderLoad)
     RenderChunk ChunkId, Chunks(ChunkId)
     RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
-    LongBuffer_Push CompletedChunks, ChunkId
 End Sub
 Sub RenderChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
-    Dim As Long X, Y, Z, Y_1
+    Dim As Long X, Y, Z, Y_1, PX, PZ
     Dim As _Unsigned Long VertexID
     Dim As _Unsigned Long I, J, TextureID, TextureOffset
-    Dim As _Unsigned _Byte Block, Visibility, Face, Light
+    Dim As _Unsigned _Byte RingId, Block, Visibility, Face, Light
     Dim As Single __TextureHeight: __TextureHeight = TextureSize / TextureAtlasHeight
     Dim As _Unsigned _Byte CurrentLayer, BelowLayer, AboveLayer, LODStep
     Dim As _Unsigned Integer YStart, YEnd
     If Chunk.DataLoaded < 253 Then Exit Sub
     If Chunk.DataLoaded = 255 Then Exit Sub
-    J = ChunkId - 1
-    VertexID = ChunkDataSize * J
+    RingId = Chunk.LOD
+    PX = Chunk.TX
+    PZ = Chunk.TZ
     Chunk.VerticesCount = 0
     Chunk.TransparentVerticesCount = 0
     LODStep = _ShL(1, Chunk.LOD)
     For Mode = 0 To 1
+        Select Case Mode
+            Case 0: VertexID = Rings(RingId).TotalVertices
+            Case 1: VertexID = TransparentRings(RingId).TotalVertices
+        End Select
         YStart = Chunk.MinimumHeight And Not (LODStep - 1)
         YEnd = Chunk.MaximumHeight
         For Y = YStart To YEnd
@@ -232,25 +248,39 @@ Sub RenderChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
                             Case 4: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
                             Case 5: Light = 11: If omitSimilarFace And Block = Chunk.Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
                         End Select
-                        Vertices(VertexID).X = X + CubeVertices(I).X * LODStep
-                        Vertices(VertexID).Y = Y + CubeVertices(I).Y
-                        Vertices(VertexID).Z = Z + CubeVertices(I).Z * LODStep
-                        TextureCoords(VertexID).X = CubeTextureCoords(I).X
-                        TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
-                        Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkId, _Clamp(0, 15 - Light, 15))
-                        Colors(VertexID).Y = Colors(VertexID).X
-                        Colors(VertexID).Z = Colors(VertexID).X
-                        Chunk.TransparentVerticesCount = Chunk.TransparentVerticesCount - (Mode = 1)
-                        Chunk.VerticesCount = Chunk.VerticesCount - (Mode = 0)
+                        Select Case Mode
+                            Case 0
+                                Rings(RingId).Vertices(VertexID).X = PX + X + CubeVertices(I).X * LODStep
+                                Rings(RingId).Vertices(VertexID).Y = Y + CubeVertices(I).Y
+                                Rings(RingId).Vertices(VertexID).Z = PZ + Z + CubeVertices(I).Z * LODStep
+                                Rings(RingId).TextureCoords(VertexID).X = CubeTextureCoords(I).X
+                                Rings(RingId).TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
+                                Rings(RingId).Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkId, _Clamp(0, 15 - Light, 15))
+                                Rings(RingId).Colors(VertexID).Y = Rings(RingId).Colors(VertexID).X
+                                Rings(RingId).Colors(VertexID).Z = Rings(RingId).Colors(VertexID).X
+                                Chunk.VerticesCount = Chunk.VerticesCount + 1
+                            Case 1
+                                TransparentRings(RingId).Vertices(VertexID).X = PX + X + CubeVertices(I).X * LODStep
+                                TransparentRings(RingId).Vertices(VertexID).Y = Y + CubeVertices(I).Y
+                                TransparentRings(RingId).Vertices(VertexID).Z = PZ + Z + CubeVertices(I).Z * LODStep
+                                TransparentRings(RingId).TextureCoords(VertexID).X = CubeTextureCoords(I).X
+                                TransparentRings(RingId).TextureCoords(VertexID).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
+                                TransparentRings(RingId).Colors(VertexID).X = AmbientOcclusion(X, Y, Z, I, ChunkId, _Clamp(0, 15 - Light, 15))
+                                TransparentRings(RingId).Colors(VertexID).Y = TransparentRings(RingId).Colors(VertexID).X
+                                TransparentRings(RingId).Colors(VertexID).Z = TransparentRings(RingId).Colors(VertexID).X
+                                Chunk.TransparentVerticesCount = Chunk.TransparentVerticesCount + 1
+                        End Select
                         VertexID = VertexID + 1
-                        If VertexID < MaxRenderPipelineSize Then _Continue
+                        If _IIf(Mode, Chunk.TransparentVerticesCount, Chunk.VerticesCount) < ChunkDataSize Then _Continue
                         Write_Log "VertexID exceeded! " + _ToStr$(Chunk.X) + Str$(Chunk.Z)
                         Exit For
                     Next I
-                    If VertexID >= MaxRenderPipelineSize Then Exit For
+                    If _IIf(Mode, Chunk.TransparentVerticesCount, Chunk.VerticesCount) >= ChunkDataSize Then Exit For
         Next Z, X, Y
         VertexID = VertexID + 1
     Next Mode
+    Rings(RingId).TotalVertices = Rings(RingId).TotalVertices + Chunk.VerticesCount
+    TransparentRings(RingId).TotalVertices = TransparentRings(RingId).TotalVertices + Chunk.TransparentVerticesCount
     TotalChunksLoaded = TotalChunksLoaded + 1
     Chunk.DataLoaded = 255
 End Sub
