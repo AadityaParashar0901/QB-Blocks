@@ -221,7 +221,10 @@ Sub RenderChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
             If LayerCombination < 3 Then _Continue
             For X = 1 To 17 - LODStep Step LODStep
                 For Z = 1 To 17 - LODStep Step LODStep
-                    Block = Chunk.Blocks(X, Y, Z)
+                    Block = 0: For I = 0 To LODStep - 1: For J = 0 To LODStep - 1
+                            If Block Then Exit For
+                            Block = Chunk.Blocks(X, Y, Z)
+                    Next J, I
                     If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
                     Visibility = 0
                     For I = 0 To LODStep - 1

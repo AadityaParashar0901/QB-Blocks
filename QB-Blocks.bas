@@ -38,10 +38,12 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
+Dim Shared As _Unsigned _Byte Can_Build_ChunkQueue
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
 RenderDistance = 16
+Can_Build_ChunkQueue = -1
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -79,6 +81,7 @@ Type Ring
 End Type
 Dim Shared As Ring Rings(0 To RenderDistance \ 8)
 Dim Shared As Ring TransparentRings(0 To RenderDistance \ 8)
+Dim Shared As _Unsigned _Byte RingsVisibility(0 To 9)
 
 Dim Shared CubeVertices(0 To 23) As Vec3_Byte
 Dim Shared CubeTextureCoords(0 To 23) As Vec2_Float
@@ -231,7 +234,7 @@ Do
             If DefaultFont > 0 Then _Font DefaultFont
         End If
     End If
-    If NeedToBuild_ChunkQueue Then
+    If NeedToBuild_ChunkQueue And Can_Build_ChunkQueue Then
         NeedToBuild_ChunkQueue = 0
         Build_ChunkQueue
     End If
@@ -393,6 +396,28 @@ Sub _GL Static
                     GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu
                 Case 71, 103 ' G
                     Fog = Not Fog
+                Case 78, 110 ' N
+                    Can_Build_ChunkQueue = Not Can_Build_ChunkQueue
+                Case 48 ' 0
+                    RingsVisibility(0) = Not RingsVisibility(0)
+                Case 49 ' 1
+                    RingsVisibility(1) = Not RingsVisibility(1)
+                Case 50 ' 2
+                    RingsVisibility(2) = Not RingsVisibility(2)
+                Case 51 ' 3
+                    RingsVisibility(3) = Not RingsVisibility(3)
+                Case 52 ' 4
+                    RingsVisibility(4) = Not RingsVisibility(4)
+                Case 53 ' 5
+                    RingsVisibility(5) = Not RingsVisibility(5)
+                Case 54 ' 6
+                    RingsVisibility(6) = Not RingsVisibility(6)
+                Case 55 ' 7
+                    RingsVisibility(7) = Not RingsVisibility(7)
+                Case 56 ' 8
+                    RingsVisibility(8) = Not RingsVisibility(8)
+                Case 57 ' 9
+                    RingsVisibility(9) = Not RingsVisibility(9)
                 Case 15616 ' F3
                     GL_EXTRA_STATE = _IIf(GL_EXTRA_STATE <> CONST_GL_STATE_Show_FPS, CONST_GL_STATE_Show_FPS, CONST_GL_STATE_Show_Debug_Menu)
             End Select
@@ -468,13 +493,14 @@ Sub _GL Static
             tmpChunksVisible = 0
             tmpQuadsVisible = 0
             '--- Render Chunks' Opaque Render Data ---
-            For __I = 0 To UBound(Rings)
-                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(Rings(__I).Vertices())
-                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(Rings(__I).TextureCoords())
-                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Rings(__I).Colors())
-                _glDrawArrays _GL_QUADS, 0, Rings(__I).TotalVertices
-                tmpQuadsVisible = tmpQuadsVisible + _ShR(Rings(__I).TotalVertices, 2)
-            Next __I
+            For I = 0 To UBound(Rings)
+                If RingsVisibility(I) Then _Continue
+                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(Rings(I).Vertices())
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(Rings(I).TextureCoords())
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Rings(I).Colors())
+                _glDrawArrays _GL_QUADS, 0, Rings(I).TotalVertices
+                tmpQuadsVisible = tmpQuadsVisible + _ShR(Rings(I).TotalVertices, 2)
+            Next I
             '-----------------------------------------
 
             '--- Render Chunks' Transparent Render Data ---
@@ -482,6 +508,7 @@ Sub _GL Static
             _glPushMatrix
             _glTranslatef 0, -0.15 - Sin(TransparentTranslateY) * 0.1, 0
             For I = 0 To UBound(TransparentRings)
+                If RingsVisibility(I) Then _Continue
                 _glVertexPointer 3, _GL_FLOAT, 0, _Offset(TransparentRings(I).Vertices())
                 _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(TransparentRings(I).TextureCoords())
                 _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(TransparentRings(I).Colors())
@@ -536,6 +563,8 @@ Sub _GL Static
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size) + "," + Str$(Queue_RenderLoad.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
+                PrintString 0, 112, "Rings: " + _IIf(RingsVisibility(0), "0", "1") + _IIf(RingsVisibility(1), "0", "1") + _IIf(RingsVisibility(2), "0", "1") + _IIf(RingsVisibility(3), "0", "1") + _IIf(RingsVisibility(4), "0", "1"), LightGreen
+                PrintString 0, 128, "Can Build Chunk Queue: " + _IIf(Can_Build_ChunkQueue, "True", "False"), _IIf(Can_Build_ChunkQueue, LightGreen, Red)
                 Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
                 For I = 1 To 256
                     Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(ChunkDataGraphTimer, I))), _RGB32(0, 255, 0, 127), BF
