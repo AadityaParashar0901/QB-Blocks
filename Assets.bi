@@ -32,7 +32,7 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                 Case "blocks": CurrentMode = 2: I = I + 1
                     Type BlockData
                         As String Name
-                        As String * 6 Faces
+                        As _Unsigned _Byte Faces(0 To 5)
                         As _Unsigned _Byte Transparent
                     End Type
                     ReDim Shared Blocks(0) As BlockData
@@ -81,13 +81,13 @@ For I = 1 To ListStringLength(FileContents) ' Parse it
                     I = I + 2
                     Select Case ListStringGet(FileContents, I)
                         Case "[": For J = 1 To 6
-                                Asc(Blocks(CurrentBlockID).Faces, J) = Val(ListStringGet(FileContents, I + J * 2 - 1))
+                                Blocks(CurrentBlockID).Faces(J - 1) = Val(ListStringGet(FileContents, I + J * 2 - 1))
                             Next J
                             I = I + 11
                         Case Else
-                            Blocks(CurrentBlockID).Faces = String$(6, Val(ListStringGet(FileContents, I)))
+                            For J = 0 To 5: Blocks(CurrentBlockID).Faces(J) = Val(ListStringGet(FileContents, I)): Next J
                     End Select
-                    File_Log "Block Textures: " + Str$(Asc(Blocks(CurrentBlockID).Faces, 1)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 2)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 3)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 4)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 5)) + Str$(Asc(Blocks(CurrentBlockID).Faces, 6))
+                    File_Log "Block Textures: " + Str$(Blocks(CurrentBlockID).Faces(0)) + Str$(Blocks(CurrentBlockID).Faces(1)) + Str$(Blocks(CurrentBlockID).Faces(2)) + Str$(Blocks(CurrentBlockID).Faces(3)) + Str$(Blocks(CurrentBlockID).Faces(4)) + Str$(Blocks(CurrentBlockID).Faces(5))
                 Case "transparent": If BlockMode = 0 Then _Continue
                     Blocks(CurrentBlockID).Transparent = -1
                     isTransparent(CurrentBlockID) = 1

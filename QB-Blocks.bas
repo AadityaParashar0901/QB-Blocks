@@ -25,12 +25,14 @@ End Type
 '--- Game Build Settings ---
 Const GameVersion = 6.0
 
-Const UseMultiThreading = 0
+Const UseMultiThreading = 1
 Const MaxThreads = 1
 
+$Let REPORTERROR = 0
 Const MaxRenderDistance = 16
 Const WaterLevel = 64
 Const UseDefaultFont = -1
+Const Show_Chunk_Time_Graph = 0
 '---------------------------
 Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
@@ -66,6 +68,7 @@ Const CONST_GL_STATE_Show_FPS = 6
 Const CONST_GL_STATE_Show_Debug_Menu = 7
 Const CONST_GL_STATE_Show_Loading_Menu = 8
 Dim Shared As String GL_Loading_Menu_Message
+Dim Shared As _Unsigned _Byte GiveWorkToThread
 
 _GLRender _Behind
 
@@ -212,7 +215,9 @@ GL_CURRENT_STATE = CONST_GL_STATE_Gameplay
 GL_EXTRA_STATE = CONST_GL_STATE_Show_Debug_Menu
 _FPS Fps
 Do
+    $If REPORTERROR Then
     On Error GoTo ErrHandler
+    $End If
     _Limit 240
     If _Resize Then
         tmpScreenWidth = _ResizeWidth
@@ -233,21 +238,21 @@ Do
         NeedToBuild_ChunkQueue = 0
         Build_ChunkQueue
     End If
-    If Queue_ChunkLoad.Size Then
+    If Queue_ChunkLoad.Size And GiveWorkToThread Then
         LoadNextChunk ' Dispatcher
+        GiveWorkToThread = 0
     End If
     If Queue_RenderLoad.Size Then
         RenderNextChunk
     End If
     If UseMultiThreading Then
         For id = LBound(ChunkWorkers) To UBound(ChunkWorkers) ' Collector
-            lockThread id
             If ChunkWorkers(id).Finished = 0 Then _Continue
+            Write_Log "Thread " + _ToStr$(id) + " Finished"
             Chunks(ChunkWorkers(id).ChunkId) = ChunkWorkers(id).Chunk
-            ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (ChunkWorkers(id).TimeTook) * 1024 / ChunkDataGraphTimerConstant, 255))
+            If Show_Chunk_Time_Graph Then ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (ChunkWorkers(id).TimeTook) * 1024 / ChunkDataGraphTimerConstant, 255))
             LongBuffer_Push Queue_RenderLoad, ChunkWorkers(id).ChunkId
             ChunkWorkers(id).Finished = 0
-            unlockThread id
         Next id
     End If
 
@@ -386,7 +391,9 @@ Sub _GL Static
     Static As Long I, J
     Static As _Unsigned _Byte NewFov, Zoom
     Static As Single TransparentTranslateY
+    $If REPORTERROR Then
     On Error GoTo GLErrHandler
+    $End If
     Select Case GL_CURRENT_STATE
         Case CONST_GL_STATE_Pause_Menu
             _MouseShow
@@ -410,6 +417,8 @@ Sub _GL Static
                     GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu
                 Case 71, 103 ' G
                     Fog = Not Fog
+                Case 77, 109 ' M
+                    GiveWorkToThread = -1
                 Case 15616 ' F3
                     GL_EXTRA_STATE = _IIf(GL_EXTRA_STATE <> CONST_GL_STATE_Show_FPS, CONST_GL_STATE_Show_FPS, CONST_GL_STATE_Show_Debug_Menu)
             End Select
@@ -557,13 +566,15 @@ Sub _GL Static
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size) + "," + Str$(Queue_RenderLoad.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
-                Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
-                For I = 1 To 256
-                    Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(ChunkDataGraphTimer, I))), _RGB32(0, 255, 0, 127), BF
-                    Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(RenderDataGraphTimer, I))), _RGB32(255, 0, 0, 127), BF
-                Next I
-                PrintString 16, _Height - 64, "Chunk:" + Str$(ChunkDataGraphTimerConstant), _RGB32(0, 255, 0)
-                PrintString 16, _Height - 48, "Render:" + Str$(RenderDataGraphTimerConstant), _RGB32(255, 0, 0)
+                If Show_Chunk_Time_Graph Then
+                    Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
+                    For I = 1 To 256
+                        Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(ChunkDataGraphTimer, I))), _RGB32(0, 255, 0, 127), BF
+                        Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(RenderDataGraphTimer, I))), _RGB32(255, 0, 0, 127), BF
+                    Next I
+                    PrintString 16, _Height - 64, "Chunk:" + Str$(ChunkDataGraphTimerConstant), _RGB32(0, 255, 0)
+                    PrintString 16, _Height - 48, "Render:" + Str$(RenderDataGraphTimerConstant), _RGB32(255, 0, 0)
+                End If
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
             _Display
@@ -580,12 +591,13 @@ End Function
 Sub LoadNextChunk ()
     Dim As _Unsigned Long I
     If UseMultiThreading Then
+        'Write_Log "Trying to assign work to threads"
         For I = LBound(ChunkWorkers) To UBound(ChunkWorkers)
             If ChunkWorkers(I).Start Or ChunkWorkers(I).Finished Then _Continue
             lockThread I
             ChunkWorkers(I).ChunkId = LongBuffer_Pop(Queue_ChunkLoad)
             ChunkWorkers(I).Chunk = Chunks(ChunkWorkers(I).ChunkId)
-            Write_Log "Gave work to thread " + _ToStr$(I) + ": " + _ToStr$(ChunkWorkers(I).ChunkId)
+            Write_Log "Gave work to thread " + _ToStr$(I) + ": " + _ToStr$(ChunkWorkers(I).ChunkId) + " (" + _ToStr$(ChunkWorkers(I).Chunk.X) + Str$(ChunkWorkers(I).Chunk.Z) + ")"
             ChunkWorkers(I).Start = -1
             unlockThread I
         Next I
@@ -602,17 +614,17 @@ Sub workerThread (id As Long)
     Dim As Single ST
     ChunkWorkers(id).id = id
     Do
-        If ChunkWorkers(id).Start = 0 Then
-            _Delay 0.001
-            _Continue
+        If ChunkWorkers(id).Start Then
+            lockThread id
+            ST = Timer(0.01)
+            LoadChunk ChunkWorkers(id).ChunkId, ChunkWorkers(id).Chunk
+            ChunkWorkers(id).Start = 0
+            ChunkWorkers(id).TimeTook = Timer(0.01) - ST
+            ChunkWorkers(id).Finished = -1
+            unlockThread id
+        Else
+            _Delay 0.01
         End If
-        lockThread id
-        ST = Timer(0.01)
-        LoadChunk ChunkWorkers(id).ChunkId, ChunkWorkers(id).Chunk
-        ChunkWorkers(id).Start = 0
-        ChunkWorkers(id).TimeTook = Timer(0.01) - ST
-        ChunkWorkers(id).Finished = -1
-        unlockThread id
     Loop Until ChunkWorkers(id).Quit
     exitThread
     $Checking:On
@@ -679,10 +691,12 @@ Sub CriticalError (__E$)
 End Sub
 '---------------
 
-Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
+Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long)
     Dim As _Unsigned Long I
+    If _Dest = _Console Then Exit Sub
     If UseDefaultFont Then
-        Color Colour: _PrintString (X, Y), T$
+        Color Colour
+        _PrintString (X, Y), T$
     Else
         For I = 1 To Len(T$)
             B~%% = Asc(T$, I)

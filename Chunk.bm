@@ -1,7 +1,7 @@
-Sub Build_ChunkQueue Static
-    Static As Vec3_Long tmpChunksStart, tmpChunksEnd
-    Static As Long I, X, Z
-    Static ChunkId As _Unsigned Long
+Sub Build_ChunkQueue
+    Dim As Vec3_Long tmpChunksStart, tmpChunksEnd
+    Dim As Long I, X, Z
+    Dim ChunkId As _Unsigned Long
     LongBuffer_Clear Queue_ChunkLoad
     For R = 0 To RenderDistance
         tmpChunksStart.X = PlayerChunk.X - R
@@ -72,7 +72,7 @@ Sub Build_ChunkQueue Static
         Next I
     Next R
 End Sub
-Function getChunkID~& (X As Long, Z As Long) Static
+Function getChunkID~& (X As Long, Z As Long)
     getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
 End Function
 Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
@@ -96,12 +96,12 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     TransparentBlocksCount = 0
     For X = 0 To 17
         For Z = 0 To 17
-            Height = getHeight(PX + X, PZ + Z)
+            Height = 65 ' getHeight(PX + X, PZ + Z)
             Chunk.MaximumHeight = _Max(Height + 1, Chunk.MaximumHeight)
             Chunk.MinimumHeight = _Min(Chunk.MinimumHeight, Height - 2)
             dHeight = Height - Int(Height)
             Height = Int(Height)
-            For Y = Chunk.MinimumHeight - 1 To Chunk.MaximumHeight + 1
+            For Y = _Max(1, Chunk.MinimumHeight - 1) To _Min(Chunk.MaximumHeight + 1, 256)
                 Select Case Y
                     Case Is < Height - 2: Block = BiomeBlocks(2, Biome_Default)
                     Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome_Default)
@@ -117,7 +117,7 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
                     Chunk.dirtyBit_TransparentBlock(_ShR(Y_1, 3)) = Chunk.dirtyBit_TransparentBlock(_ShR(Y_1, 3)) Or _ShL(isTransparentBlock And (Block <> 0), Y_1 And 7)
                     Chunk.dirtyBit_SolidBlock(_ShR(Y_1, 3)) = Chunk.dirtyBit_SolidBlock(_ShR(Y_1, 3)) Or _ShL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
                 End If
-                Chunk.Blocks(X, Y, Z) = Block
+                If X >= 0 And X <= 17 And Z >= 0 And Z <= 17 And Y >= 0 And Y <= 257 Then Chunk.Blocks(X, Y, Z) = Block
                 TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
             Next Y
     Next Z, X
@@ -181,18 +181,20 @@ Sub RenderChunk (ChunkId As _Unsigned Long)
                     For I = 0 To 23
                         Face = _ShR(I, 2)
                         If (Visibility And _ShL(1, Face)) = 0 Then I = I + 3: _Continue
-                        TextureID = Asc(Blocks(Block).Faces, Face + 1)
+                        TextureID = Blocks(Block).Faces(Face)
                         If TextureID = 0 Then I = I + 3: _Continue
                         TextureOffset = Textures(TextureID).Y
-                        omitSimilarFace = omitBlockFace(Block, Face)
-                        Select Case Face
-                            Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
-                            Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
-                            Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
-                            Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
-                            Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
-                            Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
-                        End Select
+                        If (I And 3) = 0 Then
+                            omitSimilarFace = omitBlockFace(Block, Face)
+                            Select Case Face
+                                Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
+                                Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
+                                Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
+                                Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
+                                Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
+                                Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
+                            End Select
+                        End If
                         Vertices(VertexID).X = X + CubeVertices(I).X
                         Vertices(VertexID).Y = Y + CubeVertices(I).Y
                         Vertices(VertexID).Z = Z + CubeVertices(I).Z
