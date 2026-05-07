@@ -126,12 +126,6 @@ Sub LoadChunk (ChunkId As _Unsigned Long, Chunk As Chunk)
     If TransparentBlocksCount = 0 Then Chunk.DataLoaded = 255: Exit Sub
     Chunk.DataLoaded = 253
 End Sub
-Sub RenderNextChunk ()
-    Dim ST#
-    ST# = Timer(0.01)
-    RenderChunk LongBuffer_Pop(Queue_RenderLoad)
-    RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
-End Sub
 Sub RenderChunk (ChunkId As _Unsigned Long)
     Dim As Long X, Y, Z, Y_1
     Dim As _Unsigned Long VertexID
