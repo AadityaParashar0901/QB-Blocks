@@ -27,9 +27,10 @@ Const GameVersion = 6.0
 
 Const UseMultiThreading = 1
 Const MaxThreads = 4
+Const UseNoise = 0 ' crashes a lot of times
 
 $Let REPORTERROR = 0
-Const MaxRenderDistance = 32
+Const MaxRenderDistance = 16
 Const WaterLevel = 64
 Const UseDefaultFont = -1
 Const Show_Chunk_Time_Graph = 1
@@ -38,7 +39,7 @@ Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
 Const MaxChunks = MaxRenderDistanceX * MaxRenderDistanceZ
 Write_Log "Max Chunks: " + _Trim$(Str$(MaxChunks))
-Const ChunkDataSize = 4096
+Const ChunkDataSize = 16384
 Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 
 '--- Game Default Settings ---
@@ -47,7 +48,7 @@ Fov = 90
 Fog = 0
 Fps = 60 ' _FPS
 Clouds = 1
-RenderDistance = 32
+RenderDistance = 16
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -437,6 +438,7 @@ Sub _GL Static
     Static As Long I, J
     Static As _Unsigned _Byte NewFov, Zoom
     Static As Single TransparentTranslateY
+    Static WorkerStatusString$
     $If REPORTERROR Then
         On Error GoTo GLErrHandler
     $End If
@@ -613,15 +615,15 @@ Sub _GL Static
                 PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size) + "," + Str$(Queue_RenderLoad.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 If UseMultiThreading Then
-                    T$ = String$(MaxThreads, 0)
+                    If Len(WorkerStatusString$) = 0 Then WorkerStatusString$ = String$(MaxThreads, 32)
                     For I = LBound(WorkerStatus) To UBound(WorkerStatus)
                         Select Case WorkerStatus(I)
-                            Case 0: Asc(T$, I) = 32
-                            Case 1: Asc(T$, I) = 67
-                            Case 2: Asc(T$, I) = 82
+                            Case 0: Asc(WorkerStatusString$, I) = 32
+                            Case 1: Asc(WorkerStatusString$, I) = 67
+                            Case 2: Asc(WorkerStatusString$, I) = 82
                         End Select
                     Next I
-                    PrintString 0, 112, "Threads: " + T$, Pink
+                    PrintString 0, 112, "Threads: " + WorkerStatusString$, Pink
                 End If
                 If Show_Chunk_Time_Graph Then
                     Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
@@ -650,6 +652,8 @@ Sub workerThread (id As Long)
     Dim As Long I, J, CX, CZ, PX, PZ, X, Z, Y, Y_1
     Dim As _Unsigned Long ChunkId, VertexId, TextureId, TextureOffset, TransparentBlocksCount
     Dim As _Unsigned _Byte Block, LayerCombination, isAirBlock, isTransparentBlock, Mode, Visibility, Face, Light, omitSimilarFace, CurrentLayer, BelowLayer, AboveLayer
+    Dim am#, tot#, m#, sc#, __x&, __z&, io%%, tx!, ty!, fx&, fy&, dx!, dy!, fx1&, fy1&, h&, i1!, i2!
+    Dim As _Byte AO_dX, AO_dY, AO_dZ, AO_s1, AO_s2, AO_c, AO_t
     $Checking:Off
 
     Workers(id).id = id
@@ -678,7 +682,26 @@ Sub workerThread (id As Long)
             TransparentBlocksCount = 0
             For X = 0 To 17
                 For Z = 0 To 17
-                    Height = 65 ' getHeight(PX + X, PZ + Z)
+                    If UseNoise Then
+                        am# = 1: tot# = 0: m# = 0: sc# = 1 / 256
+                        __x& = PX + X - _ShR(Seed, 16): __z& = PZ + Z - (Seed And 65535)
+                        For io%% = 0 To 3
+                            tx! = __x& * sc#: ty! = __z& * sc#: fx& = Int(tx!): fy& = Int(ty!)
+                            dx! = tx! - fx&: dx! = dx! * dx! * (3 - 2 * dx!): dy! = ty! - fy&: dy! = dy! * dy! * (3 - 2 * dy!): fx1& = fx& + 1: fy1& = fy& + 1
+
+                            h& = fx& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n00! = (h& And 2147483647) / 2147483647
+                            h& = fx1& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n10! = (h& And 2147483647) / 2147483647
+                            h& = fx& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n01! = (h& And 2147483647) / 2147483647
+                            h& = fx1& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n11! = (h& And 2147483647) / 2147483647
+
+                            i1! = n00! + (n10! - n00!) * dx!: i2! = n01! + (n11! - n01!) * dx!
+                            tot# = tot# + am# * (i1! + (i2! - i1!) * dy!)
+                            m# = m# + am#: am# = am# * .5: sc# = sc# * 2
+                        Next
+                        Height = _Clamp(1, 1 + tot# / m# * 256, 256)
+                    Else
+                        Height = _Clamp(1, 128 + 64 * Sin((PX + X) / 64) * Sin((PZ + Z) / 64), 256)
+                    End If
                     Chunks(ChunkId).MaximumHeight = _Max(Height + 1, Chunks(ChunkId).MaximumHeight)
                     Chunks(ChunkId).MinimumHeight = _Min(Chunks(ChunkId).MinimumHeight, Height - 2)
                     dHeight = Height - Int(Height)
@@ -773,7 +796,8 @@ Sub workerThread (id As Long)
                                 Vertices(VertexId).Z = Z + CubeVertices(I).Z
                                 TextureCoords(VertexId).X = CubeTextureCoords(I).X
                                 TextureCoords(VertexId).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
-                                Colors(VertexId).X = 255 ' AmbientOcclusion(X, Y, Z, I, ChunkId, _Clamp(0, 15 - Light, 15))
+                                AO_dX = _ShL(CubeVertices(I).X, 1) - 1: AO_dY = _ShL(CubeVertices(I).Y, 1) - 1: AO_dZ = _ShL(CubeVertices(I).Z, 1) - 1: AO_t = Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z + AO_dZ)) + Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z)) + Sgn(Chunks(ChunkId).Blocks(X, Y + AO_dY, Z + AO_dZ)) + _Clamp(0, 15 - Light, 15)
+                                Colors(VertexId).X = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
                                 Colors(VertexId).Y = Colors(VertexId).X
                                 Colors(VertexId).Z = Colors(VertexId).X
                                 Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
@@ -825,16 +849,6 @@ Function getBlockID~% (BlockName$)
     getBlockID~% = CVI(Mid$(BlockHashTable_Code(Hash~%%), 2 * Search~% - 1, 2))
 End Function
 '------------------------
-
-'--- Terrain ---
-Function getHeight! (X As Long, Z As Long)
-    Dim As Integer SX, SZ
-    Dim As Long PX, PZ
-    SX = _ShR(Seed, 16): SZ = Seed And 65535
-    PX = X - SX: PZ = Z - SZ
-    getHeight! = _Clamp(1, 1 + fractal2(PX, PZ, 256, 0, 0) * 256, 256)
-End Function
-'--------------
 
 
 '--- Helper Function & Libraries ---
