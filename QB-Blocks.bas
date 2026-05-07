@@ -46,7 +46,7 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance, Clouds
 Fov = 90
 Fog = 0
 Fps = 60 ' _FPS
-Clouds = 0
+Clouds = 1
 RenderDistance = 32
 '-----------------------------
 
@@ -70,6 +70,7 @@ Const CONST_GL_STATE_Show_Debug_Menu = 7
 Const CONST_GL_STATE_Show_Loading_Menu = 8
 Dim Shared As String GL_Loading_Menu_Message
 Dim Shared As _Unsigned _Byte GiveWorkToThread
+GiveWorkToThread = -1
 
 _GLRender _Behind
 
@@ -240,9 +241,9 @@ Do
         NeedToBuild_ChunkQueue = 0
         Build_ChunkQueue
     End If
-    If GiveWorkToThread Then ' Dispatcher
-        If Queue_ChunkLoad.Size > 0 And LFPSCount And 1 Then
-            If UseMultiThreading Then
+    If UseMultiThreading Then
+        If GiveWorkToThread Then
+            If Queue_ChunkLoad.Size > 0 And LFPSCount And 1 Then
                 For I = LBound(Workers) To UBound(Workers)
                     If Workers(I).Start Or Workers(I).Finished Then _Continue
                     lockThread I
@@ -252,16 +253,8 @@ Do
                     unlockThread I
                     Exit For
                 Next I
-            Else
-                I = LongBuffer_Pop(Queue_ChunkLoad)
-                ST# = Timer(0.01)
-                LoadChunk I, Chunks(I)
-                ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
-                LongBuffer_Push Queue_RenderLoad, I
             End If
-        End If
-        If Queue_RenderLoad.Size > 0 And LFPSCount And 2 Then
-            If UseMultiThreading Then
+            If Queue_RenderLoad.Size > 0 And LFPSCount And 2 Then
                 For I = LBound(Workers) To UBound(Workers)
                     If Workers(I).Start Or Workers(I).Finished Then _Continue
                     lockThread I
@@ -271,15 +264,8 @@ Do
                     unlockThread I
                     Exit For
                 Next I
-            Else
-                ST# = Timer(0.01)
-                RenderChunk LongBuffer_Pop(Queue_RenderLoad)
-                RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
             End If
         End If
-        ' ----------
-    End If
-    If UseMultiThreading Then
         For I = LBound(Workers) To UBound(Workers) ' Collector
             If Workers(I).Start Then _Continue
             Select Case Workers(I).Finished
@@ -291,6 +277,19 @@ Do
             Workers(I).Finished = 0
             WorkerStatus(I) = 0
         Next I
+    Else
+        If Queue_ChunkLoad.Size > 0 Then
+            I = LongBuffer_Pop(Queue_ChunkLoad)
+            ST# = Timer(0.01)
+            LoadChunk I, Chunks(I)
+            ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / ChunkDataGraphTimerConstant, 255))
+            LongBuffer_Push Queue_RenderLoad, I
+        End If
+        If Queue_RenderLoad.Size > 0 Then
+            ST# = Timer(0.01)
+            RenderChunk LongBuffer_Pop(Queue_RenderLoad)
+            RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, (Timer(0.01) - ST#) * 1024 / RenderDataGraphTimerConstant, 255))
+        End If
     End If
 
     If _Exit Then Exit Do
