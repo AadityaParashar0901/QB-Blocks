@@ -28,9 +28,10 @@ Const GameVersion = 6.0
 Const UseMultiThreading = 1
 Const MaxThreads = 4
 Const UseNoise = 0 ' crashes a lot of times
+Const MaxJobsPerThread = 4 ' crashes if high, stable = 4
 
 $Let REPORTERROR = 0
-Const MaxRenderDistance = 16
+Const MaxRenderDistance = 32
 Const WaterLevel = 64
 Const UseDefaultFont = -1
 Const Show_Chunk_Time_Graph = 1
@@ -39,7 +40,7 @@ Const MaxRenderDistanceX = 2 * MaxRenderDistance + 1
 Const MaxRenderDistanceZ = 2 * MaxRenderDistance + 1
 Const MaxChunks = MaxRenderDistanceX * MaxRenderDistanceZ
 Write_Log "Max Chunks: " + _Trim$(Str$(MaxChunks))
-Const ChunkDataSize = 16384
+Const ChunkDataSize = 4096
 Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 
 '--- Game Default Settings ---
@@ -47,8 +48,8 @@ Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance, Clouds
 Fov = 90
 Fog = 0
 Fps = 60 ' _FPS
-Clouds = 1
-RenderDistance = 16
+Clouds = 0
+RenderDistance = 32
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -104,8 +105,9 @@ Dim Shared As _Unsigned Long TotalChunksLoaded
 '$Include:'multi_threading\multi_threading.bi'
 Type ChunkWorker ' for multithreading
     As Long id
-    As _Unsigned Long ChunkId
-    As _Unsigned _Byte Start, Finished, Quit
+    As _Unsigned Long ChunkId(0 to 255)
+    As _Unsigned Long Jobs
+    As _Unsigned _Byte Start, Finished, Freeze, Quit
     As Single TimeTook
     As Single ST
 End Type
@@ -245,39 +247,62 @@ Do
     If UseMultiThreading Then
         If GiveWorkToThread Then
             If Queue_ChunkLoad.Size > 0 And LFPSCount And 1 Then
-                For I = LBound(Workers) To UBound(Workers)
-                    If Workers(I).Start Or Workers(I).Finished Then _Continue
-                    lockThread I
-                    Workers(I).ChunkId = LongBuffer_Pop(Queue_ChunkLoad)
-                    Workers(I).Start = 1
-                    WorkerStatus(I) = 1
-                    unlockThread I
+                For id = LBound(Workers) To UBound(Workers)
+                    If Workers(id).Start Or Workers(id).Finished Then _Continue
+                    lockThread id
+                    Workers(id).Jobs = 0
+                    Workers(id).Freeze = 0
+                    For I = 0 To MaxJobsPerThread - 1
+                        If Queue_ChunkLoad.Size = 0 Then Exit For
+                        Workers(id).ChunkId(I) = LongBuffer_Pop(Queue_ChunkLoad)
+                        Workers(id).Jobs = Workers(id).Jobs + 1
+                    Next I
+                    Workers(id).Start = 1
+                    WorkerStatus(id) = 1
+                    unlockThread id
                     Exit For
-                Next I
+                Next id
             End If
             If Queue_RenderLoad.Size > 0 And LFPSCount And 2 Then
-                For I = LBound(Workers) To UBound(Workers)
-                    If Workers(I).Start Or Workers(I).Finished Then _Continue
-                    lockThread I
-                    Workers(I).ChunkId = LongBuffer_Pop(Queue_RenderLoad)
-                    Workers(I).Start = 2
-                    WorkerStatus(I) = 2
-                    unlockThread I
+                For id = LBound(Workers) To UBound(Workers)
+                    If Workers(id).Start Or Workers(id).Finished Then _Continue
+                    lockThread id
+                    Workers(id).Jobs = 0
+                    Workers(id).Freeze = 0
+                    For I = 0 To MaxJobsPerThread - 1
+                        If Queue_RenderLoad.Size = 0 Then Exit For
+                        Workers(id).ChunkId(I) = LongBuffer_Pop(Queue_RenderLoad)
+                        Workers(id).Jobs = Workers(id).Jobs + 1
+                    Next I
+                    Workers(id).Start = 2
+                    WorkerStatus(id) = 2
+                    unlockThread id
                     Exit For
-                Next I
+                Next id
             End If
         End If
-        For I = LBound(Workers) To UBound(Workers) ' Collector
-            If Workers(I).Start Then _Continue
-            Select Case Workers(I).Finished
-                Case 1: If Show_Chunk_Time_Graph Then ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(I).TimeTook * 1024 / ChunkDataGraphTimerConstant, 255))
-                    LongBuffer_Push Queue_RenderLoad, Workers(I).ChunkId
-                Case 2: RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(I).TimeTook * 1024 / RenderDataGraphTimerConstant, 255))
+        If Queue_ChunkLoad.Size = 0 And Queue_RenderLoad.Size = 0 Then
+            For id = LBound(Workers) To UBound(Workers)
+                If Workers(id).Start Or Workers(id).Finished Then _Continue
+                lockThread id
+                Workers(id).Freeze = -1
+                WorkerStatus(id) = 3
+                unlockThread id
+            Next id
+        End If
+        For id = LBound(Workers) To UBound(Workers) ' Collector
+            If Workers(id).Start Then _Continue
+            Select Case Workers(id).Finished
+                Case 1: If Show_Chunk_Time_Graph Then ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / ChunkDataGraphTimerConstant, 255))
+                    For I = 0 To Workers(id).Jobs - 1
+                        LongBuffer_Push Queue_RenderLoad, Workers(id).ChunkId(I)
+                    Next I
+                Case 2: RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / RenderDataGraphTimerConstant, 255))
                 Case Else: _Continue
             End Select
-            Workers(I).Finished = 0
-            WorkerStatus(I) = 0
-        Next I
+            Workers(id).Finished = 0
+            WorkerStatus(id) = 0
+        Next id
     Else
         If Queue_ChunkLoad.Size > 0 Then
             I = LongBuffer_Pop(Queue_ChunkLoad)
@@ -520,7 +545,7 @@ Sub _GL Static
             _glMatrixMode _GL_PROJECTION
             _glLoadIdentity
             NewFov = NewFov + Sgn(Fov - Zoom * (Fov - 30) - NewFov)
-            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 16384
+            _gluPerspective NewFov, ScreenWidth / ScreenHeight, 0.1, 1024
             _glMatrixMode _GL_MODELVIEW
             _glCullFace _GL_BACK
 
@@ -616,11 +641,12 @@ Sub _GL Static
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 If UseMultiThreading Then
                     If Len(WorkerStatusString$) = 0 Then WorkerStatusString$ = String$(MaxThreads, 32)
-                    For I = LBound(WorkerStatus) To UBound(WorkerStatus)
-                        Select Case WorkerStatus(I)
-                            Case 0: Asc(WorkerStatusString$, I) = 32
-                            Case 1: Asc(WorkerStatusString$, I) = 67
-                            Case 2: Asc(WorkerStatusString$, I) = 82
+                    __I = 0: For I = LBound(WorkerStatus) To UBound(WorkerStatus)
+                        __I = __I + 1: Select Case WorkerStatus(I)
+                            Case 0: Asc(WorkerStatusString$, __I) = 32
+                            Case 1: Asc(WorkerStatusString$, __I) = 67
+                            Case 2: Asc(WorkerStatusString$, __I) = 82
+                            Case 3: Asc(WorkerStatusString$, __I) = 70
                         End Select
                     Next I
                     PrintString 0, 112, "Threads: " + WorkerStatusString$, Pink
@@ -661,74 +687,76 @@ Sub workerThread (id As Long)
         If Workers(id).Start = 1 Then
             lockThread id
             ST = Timer(0.01)
-            ChunkId = Workers(id).ChunkId
+            For jobId = 0 To Workers(id).Jobs - 1
+                ChunkId = Workers(id).ChunkId(jobId)
 
-            Select Case Chunks(ChunkId).DataLoaded
-                Case 253 To 255
-                    Workers(id).Start = 0
-                    Workers(id).TimeTook = Timer(0.01) - ST
-                    Workers(id).Finished = 1
-                    unlockThread id
-                    _Continue
-            End Select
-            CX = Chunks(ChunkId).X
-            CZ = Chunks(ChunkId).Z
-            PX = CX * 16
-            PZ = CZ * 16
-            Chunks(ChunkId).TX = PX
-            Chunks(ChunkId).TZ = PZ
-            Chunks(ChunkId).MinimumHeight = 256
-            Chunks(ChunkId).MaximumHeight = WaterLevel + 1
-            TransparentBlocksCount = 0
-            For X = 0 To 17
-                For Z = 0 To 17
-                    If UseNoise Then
-                        am# = 1: tot# = 0: m# = 0: sc# = 1 / 256
-                        __x& = PX + X - _ShR(Seed, 16): __z& = PZ + Z - (Seed And 65535)
-                        For io%% = 0 To 3
-                            tx! = __x& * sc#: ty! = __z& * sc#: fx& = Int(tx!): fy& = Int(ty!)
-                            dx! = tx! - fx&: dx! = dx! * dx! * (3 - 2 * dx!): dy! = ty! - fy&: dy! = dy! * dy! * (3 - 2 * dy!): fx1& = fx& + 1: fy1& = fy& + 1
+                Select Case Chunks(ChunkId).DataLoaded
+                    Case 253 To 255
+                        Workers(id).Start = 0
+                        Workers(id).TimeTook = Timer(0.01) - ST
+                        Workers(id).Finished = 1
+                        unlockThread id
+                        _Continue
+                End Select
+                CX = Chunks(ChunkId).X
+                CZ = Chunks(ChunkId).Z
+                PX = CX * 16
+                PZ = CZ * 16
+                Chunks(ChunkId).TX = PX
+                Chunks(ChunkId).TZ = PZ
+                Chunks(ChunkId).MinimumHeight = 256
+                Chunks(ChunkId).MaximumHeight = WaterLevel + 1
+                TransparentBlocksCount = 0
+                For X = 0 To 17
+                    For Z = 0 To 17
+                        If UseNoise Then
+                            am# = 1: tot# = 0: m# = 0: sc# = 1 / 256
+                            __x& = PX + X - _ShR(Seed, 16): __z& = PZ + Z - (Seed And 65535)
+                            For io%% = 0 To 3
+                                tx! = __x& * sc#: ty! = __z& * sc#: fx& = Int(tx!): fy& = Int(ty!)
+                                dx! = tx! - fx&: dx! = dx! * dx! * (3 - 2 * dx!): dy! = ty! - fy&: dy! = dy! * dy! * (3 - 2 * dy!): fx1& = fx& + 1: fy1& = fy& + 1
 
-                            h& = fx& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n00! = (h& And 2147483647) / 2147483647
-                            h& = fx1& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n10! = (h& And 2147483647) / 2147483647
-                            h& = fx& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n01! = (h& And 2147483647) / 2147483647
-                            h& = fx1& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n11! = (h& And 2147483647) / 2147483647
+                                h& = fx& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n00! = (h& And 2147483647) / 2147483647
+                                h& = fx1& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n10! = (h& And 2147483647) / 2147483647
+                                h& = fx& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n01! = (h& And 2147483647) / 2147483647
+                                h& = fx1& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n11! = (h& And 2147483647) / 2147483647
 
-                            i1! = n00! + (n10! - n00!) * dx!: i2! = n01! + (n11! - n01!) * dx!
-                            tot# = tot# + am# * (i1! + (i2! - i1!) * dy!)
-                            m# = m# + am#: am# = am# * .5: sc# = sc# * 2
-                        Next
-                        Height = _Clamp(1, 1 + tot# / m# * 256, 256)
-                    Else
-                        Height = _Clamp(1, 128 + 64 * Sin((PX + X) / 64) * Sin((PZ + Z) / 64), 256)
-                    End If
-                    Chunks(ChunkId).MaximumHeight = _Max(Height + 1, Chunks(ChunkId).MaximumHeight)
-                    Chunks(ChunkId).MinimumHeight = _Min(Chunks(ChunkId).MinimumHeight, Height - 2)
-                    dHeight = Height - Int(Height)
-                    Height = Int(Height)
-                    For Y = _Max(1, Chunks(ChunkId).MinimumHeight - 1) To _Min(Chunks(ChunkId).MaximumHeight + 1, 256)
-                        Select Case Y
-                            Case Is < Height - 2: Block = BiomeBlocks(2, Biome_Default)
-                            Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome_Default)
-                            Case Height: If Height = WaterLevel And dHeight < 0.5 Then Block = Block_Water Else Block = BiomeBlocks(0, Biome_Default)
-                            Case Else: Block = 0
-                        End Select
-                        If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
-                        isAirBlock = _IIf(Block, 0, 1)
-                        isTransparentBlock = isTransparent(Block)
-                        Y_1 = Y - 1
-                        If Y_1 >= 0 And Y_1 <= 255 Then
-                            Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) Or _ShL(isAirBlock, Y_1 And 7)
-                            Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) Or _ShL(isTransparentBlock And (Block <> 0), Y_1 And 7)
-                            Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) Or _ShL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
+                                i1! = n00! + (n10! - n00!) * dx!: i2! = n01! + (n11! - n01!) * dx!
+                                tot# = tot# + am# * (i1! + (i2! - i1!) * dy!)
+                                m# = m# + am#: am# = am# * .5: sc# = sc# * 2
+                            Next
+                            Height = _Clamp(1, 1 + tot# / m# * 256, 256)
+                        Else
+                            Height = 65 ' _Clamp(1, 128 + 64 * Sin((PX + X) / 64) * Sin((PZ + Z) / 64), 256)
                         End If
-                        If X >= 0 And X <= 17 And Z >= 0 And Z <= 17 And Y >= 0 And Y <= 257 Then Chunks(ChunkId).Blocks(X, Y, Z) = Block
-                        TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
-                    Next Y
-            Next Z, X
-            Chunks(ChunkId).MaximumHeight = _Clamp(1, Chunks(ChunkId).MaximumHeight, 256)
-            Chunks(ChunkId).MinimumHeight = _Clamp(1, Chunks(ChunkId).MinimumHeight, 256)
-            If TransparentBlocksCount = 0 Then Chunks(ChunkId).DataLoaded = 255 Else Chunks(ChunkId).DataLoaded = 253
+                        Chunks(ChunkId).MaximumHeight = _Max(Height + 1, Chunks(ChunkId).MaximumHeight)
+                        Chunks(ChunkId).MinimumHeight = _Min(Chunks(ChunkId).MinimumHeight, Height - 2)
+                        dHeight = Height - Int(Height)
+                        Height = Int(Height)
+                        For Y = _Max(1, Chunks(ChunkId).MinimumHeight - 1) To _Min(Chunks(ChunkId).MaximumHeight + 1, 256)
+                            Select Case Y
+                                Case Is < Height - 2: Block = BiomeBlocks(2, Biome_Default)
+                                Case Height - 2 To Height - 1: Block = BiomeBlocks(1, Biome_Default)
+                                Case Height: If Height = WaterLevel And dHeight < 0.5 Then Block = Block_Water Else Block = BiomeBlocks(0, Biome_Default)
+                                Case Else: Block = 0
+                            End Select
+                            If Height <= Y And Y <= WaterLevel And Height <> WaterLevel Then Block = Block_Water
+                            isAirBlock = _IIf(Block, 0, 1)
+                            isTransparentBlock = isTransparent(Block)
+                            Y_1 = Y - 1
+                            If Y_1 >= 0 And Y_1 <= 255 Then
+                                Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)) Or _ShL(isAirBlock, Y_1 And 7)
+                                Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)) Or _ShL(isTransparentBlock And (Block <> 0), Y_1 And 7)
+                                Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) = Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)) Or _ShL(1 - (isAirBlock Or isTransparentBlock), Y_1 And 7)
+                            End If
+                            If X >= 0 And X <= 17 And Z >= 0 And Z <= 17 And Y >= 0 And Y <= 257 Then Chunks(ChunkId).Blocks(X, Y, Z) = Block
+                            TransparentBlocksCount = TransparentBlocksCount + isTransparentBlock
+                        Next Y
+                Next Z, X
+                Chunks(ChunkId).MaximumHeight = _Clamp(1, Chunks(ChunkId).MaximumHeight, 256)
+                Chunks(ChunkId).MinimumHeight = _Clamp(1, Chunks(ChunkId).MinimumHeight, 256)
+                If TransparentBlocksCount = 0 Then Chunks(ChunkId).DataLoaded = 255 Else Chunks(ChunkId).DataLoaded = 253
+            Next jobId
 
             Workers(id).Start = 0
             Workers(id).TimeTook = Timer(0.01) - ST
@@ -739,83 +767,85 @@ Sub workerThread (id As Long)
             lockThread id
             ST = Timer(0.01)
 
-            ChunkId = Workers(id).ChunkId
-            __TextureHeight = TextureSize / TextureAtlasHeight
-            If Chunks(ChunkId).DataLoaded < 253 Or Chunks(ChunkId).DataLoaded = 255 Then
-                Workers(id).Start = 0
-                Workers(id).TimeTook = Timer(0.01) - ST
-                Workers(id).Finished = 2
-                unlockThread id
-                _Continue
-            End If
-            J = ChunkId - 1
-            VertexId = ChunkDataSize * J
-            Chunks(ChunkId).VerticesCount = 0
-            Chunks(ChunkId).TransparentVerticesCount = 0
-            For Mode = 0 To 1
-                For Y = Chunks(ChunkId).MinimumHeight To Chunks(ChunkId).MaximumHeight
-                    Y_1 = Y - 1
-                    CurrentLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
-                    If Y > 1 Then
-                        Y_1 = Y - 2
-                        BelowLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
-                    Else BelowLayer = 0
-                    End If
-                    If Y < 256 Then
-                        Y_1 = Y
-                        AboveLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
-                    Else AboveLayer = 0
-                    End If
-                    LayerCombination = CurrentLayer Or BelowLayer Or AboveLayer
-                    If LayerCombination < 3 Then _Continue
-                    For X = 1 To 16
-                        For Z = 1 To 16
-                            Block = Chunks(ChunkId).Blocks(X, Y, Z)
-                            If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
-                            Visibility = isTransparent(Chunks(ChunkId).Blocks(X + 1, Y, Z)) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X - 1, Y, Z)), 1) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y + 1, Z)), 2) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y - 1, Z)), 3) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z + 1)), 4) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z - 1)), 5)
-                            If Visibility = 0 Then _Continue
-                            For I = 0 To 23
-                                Face = _ShR(I, 2)
-                                If (Visibility And _ShL(1, Face)) = 0 Then I = I + 3: _Continue
-                                TextureId = Blocks(Block).Faces(Face)
-                                If TextureId = 0 Then I = I + 3: _Continue
-                                TextureOffset = Textures(TextureId).Y
-                                If (I And 3) = 0 Then
-                                    omitSimilarFace = omitBlockFace(Block, Face)
-                                    Select Case Face
-                                        Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
-                                        Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
-                                        Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
-                                        Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
-                                        Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
-                                        Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
-                                    End Select
-                                End If
-                                Vertices(VertexId).X = X + CubeVertices(I).X
-                                Vertices(VertexId).Y = Y + CubeVertices(I).Y
-                                Vertices(VertexId).Z = Z + CubeVertices(I).Z
-                                TextureCoords(VertexId).X = CubeTextureCoords(I).X
-                                TextureCoords(VertexId).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
-                                AO_dX = _ShL(CubeVertices(I).X, 1) - 1: AO_dY = _ShL(CubeVertices(I).Y, 1) - 1: AO_dZ = _ShL(CubeVertices(I).Z, 1) - 1: AO_t = Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z + AO_dZ)) + Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z)) + Sgn(Chunks(ChunkId).Blocks(X, Y + AO_dY, Z + AO_dZ)) + _Clamp(0, 15 - Light, 15)
-                                Colors(VertexId).X = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
-                                Colors(VertexId).Y = Colors(VertexId).X
-                                Colors(VertexId).Z = Colors(VertexId).X
-                                Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
-                                Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
-                                VertexId = VertexId + 1
-                            Next I
-                Next Z, X, Y
-                VertexId = VertexId + 1
-            Next Mode
-            TotalChunksLoaded = TotalChunksLoaded + 1
-            Chunks(ChunkId).DataLoaded = 255
+            For jobId = 0 To Workers(id).Jobs - 1
+                ChunkId = Workers(id).ChunkId(jobId)
+                __TextureHeight = TextureSize / TextureAtlasHeight
+                If Chunks(ChunkId).DataLoaded < 253 Or Chunks(ChunkId).DataLoaded = 255 Then
+                    Workers(id).Start = 0
+                    Workers(id).TimeTook = Timer(0.01) - ST
+                    Workers(id).Finished = 2
+                    unlockThread id
+                    _Continue
+                End If
+                J = ChunkId - 1
+                VertexId = ChunkDataSize * J
+                Chunks(ChunkId).VerticesCount = 0
+                Chunks(ChunkId).TransparentVerticesCount = 0
+                For Mode = 0 To 1
+                    For Y = Chunks(ChunkId).MinimumHeight To Chunks(ChunkId).MaximumHeight
+                        Y_1 = Y - 1
+                        CurrentLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
+                        If Y > 1 Then
+                            Y_1 = Y - 2
+                            BelowLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
+                        Else BelowLayer = 0
+                        End If
+                        If Y < 256 Then
+                            Y_1 = Y
+                            AboveLayer = _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_AirBlock(_ShR(Y_1, 3)), Y_1 And 7), 2) Or _ShL(-_ReadBit(Chunks(ChunkId).dirtyBit_TransparentBlock(_ShR(Y_1, 3)), Y_1 And 7), 1) Or -_ReadBit(Chunks(ChunkId).dirtyBit_SolidBlock(_ShR(Y_1, 3)), Y_1 And 7)
+                        Else AboveLayer = 0
+                        End If
+                        LayerCombination = CurrentLayer Or BelowLayer Or AboveLayer
+                        If LayerCombination < 3 Then _Continue
+                        For X = 1 To 16
+                            For Z = 1 To 16
+                                Block = Chunks(ChunkId).Blocks(X, Y, Z)
+                                If (Mode = 0 And isTransparent(Block)) Or (Mode = 1 And isTransparent(Block) = 0) Or Block = 0 Then _Continue
+                                Visibility = isTransparent(Chunks(ChunkId).Blocks(X + 1, Y, Z)) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X - 1, Y, Z)), 1) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y + 1, Z)), 2) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y - 1, Z)), 3) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z + 1)), 4) Or _ShL(isTransparent(Chunks(ChunkId).Blocks(X, Y, Z - 1)), 5)
+                                If Visibility = 0 Then _Continue
+                                For I = 0 To 23
+                                    Face = _ShR(I, 2)
+                                    If (Visibility And _ShL(1, Face)) = 0 Then I = I + 3: _Continue
+                                    TextureId = Blocks(Block).Faces(Face)
+                                    If TextureId = 0 Then I = I + 3: _Continue
+                                    TextureOffset = Textures(TextureId).Y
+                                    If (I And 3) = 0 Then
+                                        omitSimilarFace = omitBlockFace(Block, Face)
+                                        Select Case Face
+                                            Case 0: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X + 1, Y, Z) Then I = I + 3: _Continue
+                                            Case 1: Light = 9: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X - 1, Y, Z) Then I = I + 3: _Continue
+                                            Case 2: Light = 15: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y + 1, Z) Then I = I + 3: _Continue
+                                            Case 3: Light = 7: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y - 1, Z) Then I = I + 3: _Continue
+                                            Case 4: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z + 1) Then I = I + 3: _Continue
+                                            Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
+                                        End Select
+                                    End If
+                                    Vertices(VertexId).X = X + CubeVertices(I).X
+                                    Vertices(VertexId).Y = Y + CubeVertices(I).Y
+                                    Vertices(VertexId).Z = Z + CubeVertices(I).Z
+                                    TextureCoords(VertexId).X = CubeTextureCoords(I).X
+                                    TextureCoords(VertexId).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
+                                    AO_dX = _ShL(CubeVertices(I).X, 1) - 1: AO_dY = _ShL(CubeVertices(I).Y, 1) - 1: AO_dZ = _ShL(CubeVertices(I).Z, 1) - 1: AO_t = Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z + AO_dZ)) + Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z)) + Sgn(Chunks(ChunkId).Blocks(X, Y + AO_dY, Z + AO_dZ)) + _Clamp(0, 15 - Light, 15)
+                                    Colors(VertexId).X = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
+                                    Colors(VertexId).Y = Colors(VertexId).X
+                                    Colors(VertexId).Z = Colors(VertexId).X
+                                    Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
+                                    Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
+                                    VertexId = VertexId + 1
+                                Next I
+                    Next Z, X, Y
+                    VertexId = VertexId + 1
+                Next Mode
+                TotalChunksLoaded = TotalChunksLoaded + 1
+                Chunks(ChunkId).DataLoaded = 255
+            Next jobId
 
             Workers(id).Start = 0
             Workers(id).TimeTook = Timer(0.01) - ST
             Workers(id).Finished = 2
             unlockThread id
-        Else
-            '_Delay 0.05
+        ElseIf Workers(id).Freeze Then
+            _Delay 0.1
         End If
     Loop Until Workers(id).Quit
     exitThread
