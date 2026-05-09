@@ -25,10 +25,9 @@ End Type
 '--- Game Build Settings ---
 Const GameVersion = 6.0
 
-Const UseMultiThreading = 1
-Const MaxThreads = 1
+Const MaxThreads = 2
 Const UseNoise = 1 ' crashes a lot of times
-Const MaxJobsPerThread = 4 ' crashes if high, stable = 4
+Const MaxJobsPerThread = 16 ' crashes if high, stable = 4 ~ 16
 
 $Let REPORTERROR = 0
 Const MaxRenderDistance = 16
@@ -110,12 +109,11 @@ Dim Shared As Chunk Chunks(1 To MaxChunks)
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '$Include:'multi_threading\multi_threading.bi'
 
-Dim Shared As LongBuffer Queue_ChunkLoad, Queue_RenderLoad
+Dim Shared As LongBuffer Queue_ChunkLoad
 Dim Shared As _Byte NeedToBuild_ChunkQueue, RebuildAllChunks
 
-Dim Shared As String * 256 ChunkDataGraphTimer, RenderDataGraphTimer
-Const ChunkDataGraphTimerConstant = 1
-Const RenderDataGraphTimerConstant = 1
+Dim Shared As String * 256 GraphTimer
+Const GraphTimerConstant = 1
 '--------------
 
 '--- Player ---
@@ -204,9 +202,7 @@ On Timer(FPSCounterTimer, 1) GoSub FPSCounter
 GL_Loading_Menu_Message = "Building Chunks"
 Build_ChunkQueue
 GL_Loading_Menu_Message = "Starting Game"
-If UseMultiThreading Then
-    '$Include:'multi_threading\invoke_all_threads.bi'
-End If
+'$Include:'multi_threading\invoke_all_threads.bi'
 Build_Clouds
 Timer(FPSCounterTimer) On
 GL_CURRENT_STATE = CONST_GL_STATE_Gameplay
@@ -250,7 +246,6 @@ Do
         Next I
         TotalChunksLoaded = 0
         LongBuffer_Clear Queue_ChunkLoad
-        LongBuffer_Clear Queue_RenderLoad
         Build_ChunkQueue
     End If
     If GiveWorkToThread Then
@@ -260,7 +255,7 @@ Do
                 lockThread id
                 Workers(id).Jobs = 0
                 Workers(id).Freeze = 0
-                For I = 0 To JobsPerThread - 1
+                For I = 0 To MaxJobsPerThread - 1
                     If Queue_ChunkLoad.Size = 0 Then Exit For
                     Workers(id).ChunkId(I) = LongBuffer_Pop(Queue_ChunkLoad)
                     Workers(id).Jobs = Workers(id).Jobs + 1
@@ -271,25 +266,8 @@ Do
                 Exit For
             Next id
         End If
-        If Queue_RenderLoad.Size > 0 And LFPSCount And 2 Then
-            For id = LBound(Workers) To UBound(Workers)
-                If Workers(id).Start Or Workers(id).Finished Then _Continue
-                lockThread id
-                Workers(id).Jobs = 0
-                Workers(id).Freeze = 0
-                For I = 0 To JobsPerThread - 1
-                    If Queue_RenderLoad.Size = 0 Then Exit For
-                    Workers(id).ChunkId(I) = LongBuffer_Pop(Queue_RenderLoad)
-                    Workers(id).Jobs = Workers(id).Jobs + 1
-                Next I
-                Workers(id).Start = 2
-                WorkerStatus(id) = 2
-                unlockThread id
-                Exit For
-            Next id
-        End If
     End If
-    If Queue_ChunkLoad.Size = 0 And Queue_RenderLoad.Size = 0 Then
+    If Queue_ChunkLoad.Size = 0 Then
         For id = LBound(Workers) To UBound(Workers)
             If Workers(id).Start Or Workers(id).Finished Then _Continue
             lockThread id
@@ -301,16 +279,11 @@ Do
     For id = LBound(Workers) To UBound(Workers) ' Collector
         If Workers(id).Start Then _Continue
         Select Case Workers(id).Finished
-            Case 1: If Show_Chunk_Time_Graph Then ChunkDataGraphTimer = Mid$(ChunkDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / ChunkDataGraphTimerConstant, 255))
-                For I = 0 To Workers(id).Jobs - 1
-                    LongBuffer_Push Queue_RenderLoad, Workers(id).ChunkId(I)
-                Next I
-            Case 2: RenderDataGraphTimer = Mid$(RenderDataGraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / RenderDataGraphTimerConstant, 255))
+            Case 1: GraphTimer = Mid$(GraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / GraphTimerConstant, 255))
             Case Else: _Continue
         End Select
         Workers(id).Finished = 0
         WorkerStatus(id) = 0
-        JobsPerThread = JobsPerThread + Sgn(MaxJobsPerThread - JobsPerThread)
         NeedToChangeDraw = -1
     Next id
     If NeedToChangeDraw Then
@@ -632,7 +605,7 @@ Sub _GL Static
             If GL_EXTRA_STATE = CONST_GL_STATE_Show_Debug_Menu Then
                 PrintString 0, 48, "Render Distance: " + Str$(RenderDistance) + ", Total Chunks Loaded:" + Str$(TotalChunksLoaded) + ", Chunks Visible:" + Str$(ChunksVisible), LightBlue
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
-                PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size) + "," + Str$(Queue_RenderLoad.Size), LightBlue
+                PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
                 If UseMultiThreading Then
                     If Len(WorkerStatusString$) = 0 Then WorkerStatusString$ = String$(MaxThreads, 32)
@@ -647,13 +620,11 @@ Sub _GL Static
                     PrintString 0, 112, "Threads: " + WorkerStatusString$, Pink
                 End If
                 If Show_Chunk_Time_Graph Then
-                    Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 223), BF
+                    Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 63), BF
                     For I = 1 To 256
-                        Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(ChunkDataGraphTimer, I))), _RGB32(0, 255, 0, 127), BF
-                        Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(RenderDataGraphTimer, I))), _RGB32(255, 0, 0, 127), BF
+                        Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(GraphTimer, I))), -1, BF
                     Next I
-                    PrintString 16, _Height - 64, "Chunk:" + Str$(ChunkDataGraphTimerConstant), _RGB32(0, 255, 0)
-                    PrintString 16, _Height - 48, "Render:" + Str$(RenderDataGraphTimerConstant), _RGB32(255, 0, 0)
+                    PrintString 0, _Height - 68, _ToStr$(GraphTimerConstant), -1
                 End If
             End If
             If GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
@@ -677,6 +648,7 @@ Sub workerThread (id As Long)
     Dim As _Byte AO_dX, AO_dY, AO_dZ, AO_t
     $Checking:Off
 
+    __TextureHeight = TextureSize / TextureAtlasHeight
     Workers(id).id = id
     Do
         If Workers(id).Start = 1 Then
@@ -751,28 +723,8 @@ Sub workerThread (id As Long)
                 Next Z, X
                 Chunks(ChunkId).MaximumHeight = _Clamp(1, Chunks(ChunkId).MaximumHeight, 256)
                 Chunks(ChunkId).MinimumHeight = _Clamp(1, Chunks(ChunkId).MinimumHeight, 256)
-                If TransparentBlocksCount = 0 Then Chunks(ChunkId).DataLoaded = 255 Else Chunks(ChunkId).DataLoaded = 253
-            Next jobId
+                If TransparentBlocksCount = 0 Then Chunks(ChunkId).DataLoaded = 255: _Continue
 
-            Workers(id).Start = 0
-            Workers(id).TimeTook = Timer(0.01) - ST
-            Workers(id).Finished = 1
-            unlockThread id
-
-        ElseIf Workers(id).Start = 2 Then
-            lockThread id
-            ST = Timer(0.01)
-
-            For jobId = 0 To Workers(id).Jobs - 1
-                ChunkId = Workers(id).ChunkId(jobId)
-                __TextureHeight = TextureSize / TextureAtlasHeight
-                If Chunks(ChunkId).DataLoaded < 253 Or Chunks(ChunkId).DataLoaded = 255 Then
-                    Workers(id).Start = 0
-                    Workers(id).TimeTook = Timer(0.01) - ST
-                    Workers(id).Finished = 2
-                    unlockThread id
-                    _Continue
-                End If
                 VertexId = 0
                 Chunks(ChunkId).VerticesCount = 0
                 Chunks(ChunkId).TransparentVerticesCount = 0
@@ -840,8 +792,9 @@ Sub workerThread (id As Long)
 
             Workers(id).Start = 0
             Workers(id).TimeTook = Timer(0.01) - ST
-            Workers(id).Finished = 2
+            Workers(id).Finished = 1
             unlockThread id
+
         ElseIf Workers(id).Freeze Then
             _Delay 0.1
         End If
