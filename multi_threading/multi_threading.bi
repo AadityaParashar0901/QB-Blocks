@@ -5,3 +5,14 @@ Declare Library "./multi_threading"
     Sub lockThread (ByVal id As Long)
     Sub unlockThread (ByVal id As Long)
 End Declare
+Type ChunkWorker ' for multithreading
+    As Long id
+    As _Unsigned Long ChunkId(0 to 255)
+    As _Unsigned Long Jobs
+    As _Unsigned _Byte Start, Finished, Freeze, Quit
+    As Single TimeTook
+    As Single ST
+End Type
+Dim Shared Workers(1 To MaxThreads) As ChunkWorker
+Dim Shared WorkerStatus(1 To MaxThreads) As _Unsigned _Byte
+Dim As _Unsigned _Byte JobsPerThread: JobsPerThread = 1

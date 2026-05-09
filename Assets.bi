@@ -125,7 +125,7 @@ Dim Shared TextureAtlasHeight As _Unsigned Long
 TextureAtlasHeight = TextureSize * Textures(TotalTextures).Y + _Height(Textures(TotalTextures).Handle)
 TextureAtlas = _NewImage(TextureSize, TextureAtlasHeight, 32)
 For I = 1 To TotalTextures
-    _PutImage (0, TextureSize * Textures(I).Y), Textures(I).Handle, TextureAtlas
+    _PutImage (0, TextureSize * Textures(I).Y)-(TextureSize - 1, TextureSize * (Textures(I).Y + 1) - 1), Textures(I).Handle, TextureAtlas
     _FreeImage Textures(I).Handle
 Next I
 
