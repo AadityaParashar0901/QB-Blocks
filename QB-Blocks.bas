@@ -174,6 +174,8 @@ Else ' or generate seed
     Seed = _ShL(Rnd * 256, 24) Or _ShL(Rnd * 256, 16) Or _ShL(Rnd * 256, 8) Or _ShL(Rnd * 256, 0)
 End If
 Write_Log "Seed: " + Hex$(Seed) + "h"
+' Generate Seed
+'$Include:'lib/perlin/perlin.bi'
 '-------------
 
 '--- Font ---
@@ -600,7 +602,7 @@ Function getHeight~%% (X As Long, Z As Long)
     Dim As Long PX, PZ
     SX = _ShR(Seed, 16): SZ = Seed And 65535
     PX = X - SX: PZ = Z - SZ
-    getHeight~%% = _Clamp(1, 33 + fractal2(PX, PZ, 64, 3, 0) * 64, 256)
+    getHeight~%% = _Clamp(1, 97 + Fractal2(PX, PZ, 256, 3) * 64, 256)
 End Function
 '--------------
 
@@ -642,7 +644,7 @@ Sub PrintString (X As Integer, Y As Integer, T$, Colour As Long) Static
 End Sub
 
 '--- Libraries ---
-'$Include:'lib/noise.bm'
+'$Include:'lib/perlin/perlin.bm'
 '$Include:'lib/GL_Generate_Texture.bas'
 '$Include:'lib/Tokenizer.bas'
 '$Include:'lib/LoadBitPack.bm'

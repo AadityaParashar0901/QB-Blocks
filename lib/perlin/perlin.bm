@@ -1,0 +1,280 @@
+' =========================================================
+' FRACTAL BROWNIAN MOTION
+' =========================================================
+
+Function Fractal2! (x As Single, y As Single, s As Single, o As _Unsigned _Byte)
+
+    Dim As Integer i
+    Dim As Single total, amplitude, frequency, maxValue
+
+    amplitude = 1
+    frequency = 1 / s
+
+    For i = 0 To o
+
+        total = total + PerlinNoise2(x * frequency, y * frequency) * amplitude
+
+        maxValue = maxValue + amplitude
+
+        amplitude = amplitude * .5
+        frequency = frequency * 2
+
+    Next i
+
+    Fractal2! = total / maxValue
+
+End Function
+
+Function Fractal3! (x As Single, y As Single, z As Single, s As Single, o As _Unsigned _Byte)
+
+    Dim As Integer i
+    Dim As Single total, amplitude, frequency, maxValue
+
+    amplitude = 1
+    frequency = 1 / s
+
+    For i = 0 To o
+
+        total = total + PerlinNoise3!(x * frequency, y * frequency, z * frequency) * amplitude
+
+        maxValue = maxValue + amplitude
+
+        amplitude = amplitude * .5
+        frequency = frequency * 2
+
+    Next
+
+    Fractal3! = total / maxValue
+
+End Function
+
+' =========================================================
+' PERLIN NOISE
+' =========================================================
+
+Function PerlinNoise2! (x As Single, y As Single)
+
+    Dim As Integer X0, Y0
+    Dim As Integer X1, Y1
+
+    Dim As Single dx, dy
+    Dim As Single u, v
+
+    Dim As Integer A, B
+
+    Dim As Single g00, g10
+    Dim As Single g01, g11
+
+    Dim As Single ix0, ix1
+
+    X0 = Int(x) And 255
+    Y0 = Int(y) And 255
+
+    X1 = (X0 + 1) And 255
+    Y1 = (Y0 + 1) And 255
+
+    dx = x - Int(x)
+    dy = y - Int(y)
+
+    ' Fade
+    u = dx * dx * dx * (dx * (dx * 6 - 15) + 10)
+    v = dy * dy * dy * (dy * (dy * 6 - 15) + 10)
+
+    ' Cached lookups
+    A = Perm(X0) + Y0
+    B = Perm(X1) + Y0
+
+    ' Gradients
+    g00 = Grad2!(Perm(A), dx, dy)
+    g10 = Grad2!(Perm(B), dx - 1, dy)
+
+    g01 = Grad2!(Perm(A + 1), dx, dy - 1)
+    g11 = Grad2!(Perm(B + 1), dx - 1, dy - 1)
+
+    ' Interpolate X
+    ix0 = g00 + u * (g10 - g00)
+    ix1 = g01 + u * (g11 - g01)
+
+    ' Interpolate Y
+    PerlinNoise2! = ix0 + v * (ix1 - ix0)
+
+End Function
+
+Function PerlinNoise3! (x As Single, y As Single, z As Single)
+
+    Dim As Integer X0, Y0, Z0
+    Dim As Integer X1, Y1, Z1
+
+    Dim As Integer A, AA, AB
+    Dim As Integer B, BA, BB
+
+    Dim As Single dx, dy, dz
+    Dim As Single u, v, w
+
+    Dim As Single g000, g100, g010, g110
+    Dim As Single g001, g101, g011, g111
+
+    Dim As Single ix00, ix10
+    Dim As Single ix01, ix11
+    Dim As Single iy0, iy1
+
+    X0 = Int(x) And 255
+    Y0 = Int(y) And 255
+    Z0 = Int(z) And 255
+
+    X1 = (X0 + 1) And 255
+    Y1 = (Y0 + 1) And 255
+    Z1 = (Z0 + 1) And 255
+
+    dx = x - Int(x)
+    dy = y - Int(y)
+    dz = z - Int(z)
+
+    ' Inline fade
+    u = dx * dx * dx * (dx * (dx * 6 - 15) + 10)
+    v = dy * dy * dy * (dy * (dy * 6 - 15) + 10)
+    w = dz * dz * dz * (dz * (dz * 6 - 15) + 10)
+
+    ' Cached permutation lookups
+    A = Perm(X0) + Y0
+    AA = Perm(A) + Z0
+    AB = Perm(A + 1) + Z0
+
+    B = Perm(X1) + Y0
+    BA = Perm(B) + Z0
+    BB = Perm(B + 1) + Z0
+
+    g000 = Grad3!(Perm(AA), dx, dy, dz)
+    g100 = Grad3!(Perm(BA), dx - 1, dy, dz)
+
+    g010 = Grad3!(Perm(AB), dx, dy - 1, dz)
+    g110 = Grad3!(Perm(BB), dx - 1, dy - 1, dz)
+
+    g001 = Grad3!(Perm(AA + 1), dx, dy, dz - 1)
+    g101 = Grad3!(Perm(BA + 1), dx - 1, dy, dz - 1)
+
+    g011 = Grad3!(Perm(AB + 1), dx, dy - 1, dz - 1)
+    g111 = Grad3!(Perm(BB + 1), dx - 1, dy - 1, dz - 1)
+
+    ' Inline lerps
+    ix00 = g000 + u * (g100 - g000)
+    ix10 = g010 + u * (g110 - g010)
+
+    ix01 = g001 + u * (g101 - g001)
+    ix11 = g011 + u * (g111 - g011)
+
+    iy0 = ix00 + v * (ix10 - ix00)
+    iy1 = ix01 + v * (ix11 - ix01)
+
+    PerlinNoise3! = iy0 + w * (iy1 - iy0)
+
+End Function
+
+' =========================================================
+' GRADIENT FUNCTION
+' =========================================================
+
+Function Grad2! (Hash As Integer, x As Single, y As Single)
+
+    Select Case (Hash And 7)
+
+        Case 0
+            Grad2! = x + y
+
+        Case 1
+            Grad2! = -x + y
+
+        Case 2
+            Grad2! = x - y
+
+        Case 3
+            Grad2! = -x - y
+
+        Case 4
+            Grad2! = x
+
+        Case 5
+            Grad2! = -x
+
+        Case 6
+            Grad2! = y
+
+        Case Else
+            Grad2! = -y
+
+    End Select
+
+End Function
+
+Function Grad3! (hash As Integer, x As Single, y As Single, z As Single)
+
+    Dim As Integer h
+    Dim As Single u, v, g
+
+    h = hash And 15
+
+    If h < 8 Then
+        u = x
+    Else
+        u = y
+    End If
+
+    If h < 4 Then
+        v = y
+    ElseIf h = 12 Or h = 14 Then
+        v = x
+    Else
+        v = z
+    End If
+
+    If (h And 1) = 0 Then
+        g = u
+    Else
+        g = -u
+    End If
+
+    If (h And 2) = 0 Then
+        g = g + v
+    Else
+        g = g - v
+    End If
+
+    Grad3! = g!
+End Function
+
+
+
+' =========================================================
+' INITIALIZE PERMUTATION TABLE
+' =========================================================
+
+Sub InitPerlin (Seed As Long)
+
+    Dim BasePerm(0 To 255) As Integer
+    Dim As Integer i, j, t
+
+    ' Fill sequentially
+    For i = 0 To 255
+        BasePerm(i) = i
+    Next
+
+    ' Seed RNG
+    Randomize Seed
+
+    ' Fisher-Yates shuffle
+    For i = 255 To 1 Step -1
+
+        j = Int(Rnd * (i + 1))
+
+        t = BasePerm(i)
+        BasePerm(i) = BasePerm(j)
+        BasePerm(j) = t
+
+    Next
+
+    ' Duplicate table
+    For i = 0 To 511
+        Perm(i) = BasePerm(i And 255)
+    Next
+
+End Sub
