@@ -25,8 +25,9 @@ End Type
 '--- Game Build Settings ---
 Const GameVersion = 6.0
 
-Const MaxThreads = 2
-Const UseNoise = 1 ' crashes a lot of times
+Const MaxThreads = 3
+' Thread 1, 2: Chunk Generation
+' Thread 3: Vertex Buffer Generation
 Const MaxJobsPerThread = 16 ' crashes if high, stable = 4 ~ 16
 
 $Let REPORTERROR = 0
@@ -48,7 +49,7 @@ Fov = 90
 Fog = 0
 Fps = 60 ' _FPS
 Clouds = 0
-RenderDistance = 16
+RenderDistance = 8
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -82,6 +83,7 @@ Dim Shared As Vec3_Float Zero_Vertices(0 To MaxRenderPipelineSize - 1), One_Vert
 Dim Shared As Vec2_Float Zero_TextureCoords(0 To MaxRenderPipelineSize - 1), One_TextureCoords(0 To MaxRenderPipelineSize - 1)
 Dim Shared As Vec3_Byte Zero_Colors(0 To MaxRenderPipelineSize - 1), One_Colors(0 To MaxRenderPipelineSize - 1)
 Dim Shared As _Unsigned Long Zero_TotalChunks, Zero_TotalVertices, One_TotalChunks, One_TotalVertices
+Dim Shared As _Unsigned Long Zero_TotalTransparentVertices, One_TotalTransparentVertices
 
 Dim Shared CubeVertices(0 To 23) As Vec3_Byte
 Dim Shared CubeTextureCoords(0 To 23) As Vec2_Float
@@ -101,11 +103,12 @@ Type Chunk
     As _Unsigned Integer VerticesCount, TransparentVerticesCount, MinimumHeight, MaximumHeight
     As _Unsigned _Byte dirtyBit_AirBlock(0 to 31), dirtyBit_TransparentBlock(0 to 31), dirtyBit_SolidBlock(0 to 31)
     As _Unsigned _Byte Blocks(0 to 17, 0 to 257, 0 to 17)
-    As Vec3_Float Vertices(0 to chunkdatasize)
-    As Vec2_Float TextureCoords(0 to chunkdatasize)
-    As Vec3_Byte Colors(0 to chunkdatasize)
+    As Vec3_Byte Vertices(0 to chunkdatasize)
+    As _Unsigned _Byte Textures(0 to chunkdatasize), TextureOffsets(0 to chunkdatasize)
+    As _Unsigned _Byte Colors(0 to chunkdatasize) ' Current unsigned byte because it is grayscale
 End Type
 Dim Shared As Chunk Chunks(1 To MaxChunks)
+Write_Log "Size of Chunks Array: " + _ToStr$(Len(Chunks(0))) + " of " + _ToStr$(Len(Chunks()))
 Dim Shared As _Unsigned Long TotalChunksLoaded
 '$Include:'multi_threading\multi_threading.bi'
 
@@ -234,7 +237,8 @@ Do
     End If
     If RebuildAllChunks Then
         RebuildAllChunks = 0
-        For id = LBound(Workers) To UBound(Workers)
+        Write_Log "Rebuilding All Chunks"
+        For id = 1 To 3
             While Workers(id).Start: Wend
             Workers(id).Jobs = 0
             Workers(id).Finished = 0
@@ -248,9 +252,9 @@ Do
         LongBuffer_Clear Queue_ChunkLoad
         Build_ChunkQueue
     End If
-    If GiveWorkToThread Then
-        If Queue_ChunkLoad.Size > 0 And LFPSCount And 1 Then
-            For id = LBound(Workers) To UBound(Workers)
+    If GiveWorkToThread And Workers(3).Start = 0 And Workers(3).Finished = 0 Then
+        If Queue_ChunkLoad.Size > 0 Then
+            For id = 1 To 2
                 If Workers(id).Start Or Workers(id).Finished Then _Continue
                 lockThread id
                 Workers(id).Jobs = 0
@@ -268,7 +272,7 @@ Do
         End If
     End If
     If Queue_ChunkLoad.Size = 0 Then
-        For id = LBound(Workers) To UBound(Workers)
+        For id = 1 To 2
             If Workers(id).Start Or Workers(id).Finished Then _Continue
             lockThread id
             Workers(id).Freeze = -1
@@ -276,7 +280,7 @@ Do
             unlockThread id
         Next id
     End If
-    For id = LBound(Workers) To UBound(Workers) ' Collector
+    For id = 1 To 2 ' Collector
         If Workers(id).Start Then _Continue
         Select Case Workers(id).Finished
             Case 1: GraphTimer = Mid$(GraphTimer, 2) + Chr$(_Clamp(0, Workers(id).TimeTook * 1024 / GraphTimerConstant, 255))
@@ -286,32 +290,15 @@ Do
         WorkerStatus(id) = 0
         NeedToChangeDraw = -1
     Next id
-    If NeedToChangeDraw Then
+    If NeedToChangeDraw And Workers(3).Start = 0 And Workers(3).Finished = 0 Then
         NeedToChangeDraw = 0
-        If DrawZero Then ' need to build one
-            One_TotalVertices = 0
-            One_TotalChunks = 0
-            For I = 1 To MaxChunks
-                If Chunks(I).DataLoaded < 255 _OrElse Chunks(I).VerticesCount = 0 Then _Continue
-                MemCopy _Offset(Chunks(I).Vertices(0)), _Offset(One_Vertices(One_TotalVertices)), 12 * Chunks(I).VerticesCount
-                MemCopy _Offset(Chunks(I).TextureCoords(0)), _Offset(One_TextureCoords(One_TotalVertices)), 8 * Chunks(I).VerticesCount
-                MemCopy _Offset(Chunks(I).Colors(0)), _Offset(One_Colors(One_TotalVertices)), 3 * Chunks(I).VerticesCount
-                One_TotalVertices = One_TotalVertices + Chunks(I).VerticesCount
-                One_TotalChunks = One_TotalChunks + 1
-            Next I
-        Else ' need to build zero
-            Zero_TotalVertices = 0
-            Zero_TotalChunks = 0
-            For I = 1 To MaxChunks
-                If Chunks(I).DataLoaded < 255 _OrElse Chunks(I).VerticesCount = 0 Then _Continue
-                MemCopy _Offset(Chunks(I).Vertices(0)), _Offset(Zero_Vertices(Zero_TotalVertices)), 12 * Chunks(I).VerticesCount
-                MemCopy _Offset(Chunks(I).TextureCoords(0)), _Offset(Zero_TextureCoords(Zero_TotalVertices)), 8 * Chunks(I).VerticesCount
-                MemCopy _Offset(Chunks(I).Colors(0)), _Offset(Zero_Colors(Zero_TotalVertices)), 3 * Chunks(I).VerticesCount
-                Zero_TotalVertices = Zero_TotalVertices + Chunks(I).VerticesCount
-                Zero_TotalChunks = Zero_TotalChunks + 1
-            Next I
-        End If
+        Workers(3).Start = 2
+        WorkerStatus(3) = 2
+    End If
+    If Workers(3).Finished = 2 Then
         DrawZero = Not DrawZero
+        Workers(3).Finished = 0
+        WorkerStatus(3) = 3
     End If
 
     If _Exit Then Exit Do
@@ -328,14 +315,6 @@ While GL_CURRENT_STATE: Wend
 If LogFile Then Close #100 'Close Log File
 System
 
-Sub MemCopy (A As _Offset, B As _Offset, C As _Unsigned Long)
-    Dim As _MEM mA, mB
-    mA = _Mem(A, C)
-    mB = _Mem(B, C)
-    _MemCopy mA, mA.OFFSET, mA.SIZE To mB, mB.OFFSET
-    _MemFree mA
-    _MemFree mB
-End Sub
 '$Include:'FPSCounter.bi'
 '$Include:'ErrHandlers.bi'
 CubeModel: '$Include:'assets/models/cube.txt'
@@ -477,6 +456,10 @@ Sub _GL Static
             Select Case _KeyHit
                 Case 27 ' Esc
                     GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu
+                Case 91 ' [
+                    UpdateRenderDistance RenderDistance - 1
+                Case 93 ' ]
+                    UpdateRenderDistance RenderDistance + 1
                 Case 71, 103 ' G
                     Fog = Not Fog
                 Case 77, 109 ' M
@@ -561,15 +544,23 @@ Sub _GL Static
                 _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(Zero_TextureCoords(0))
                 _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Zero_Colors(0))
                 _glDrawArrays _GL_QUADS, 0, Zero_TotalVertices
+                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(Zero_Vertices(Zero_TotalVertices))
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(Zero_TextureCoords(Zero_TotalVertices))
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(Zero_Colors(Zero_TotalVertices))
+                _glDrawArrays _GL_QUADS, 0, Zero_TotalTransparentVertices
                 ChunksVisible = Zero_TotalChunks
-                QuadsVisible = _ShR(Zero_TotalVertices, 2)
+                QuadsVisible = _ShR(Zero_TotalVertices + Zero_TotalTransparentVertices, 2)
             Else
                 _glVertexPointer 3, _GL_FLOAT, 0, _Offset(One_Vertices(0))
                 _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(One_TextureCoords(0))
                 _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(One_Colors(0))
                 _glDrawArrays _GL_QUADS, 0, One_TotalVertices
+                _glVertexPointer 3, _GL_FLOAT, 0, _Offset(One_Vertices(One_TotalVertices))
+                _glTexCoordPointer 2, _GL_FLOAT, 0, _Offset(One_TextureCoords(One_TotalVertices))
+                _glColorPointer 3, _GL_UNSIGNED_BYTE, 0, _Offset(One_Colors(One_TotalVertices))
+                _glDrawArrays _GL_QUADS, 0, One_TotalTransparentVertices
                 ChunksVisible = One_TotalChunks
-                QuadsVisible = _ShR(One_TotalVertices, 2)
+                QuadsVisible = _ShR(One_TotalVertices + One_TotalTransparentVertices, 2)
             End If
             _glDisableClientState _GL_COLOR_ARRAY
             _glDisableClientState _GL_TEXTURE_COORD_ARRAY
@@ -607,18 +598,15 @@ Sub _GL Static
                 PrintString 0, 64, "Quads Visible:" + Str$(QuadsVisible) + ", Avg/Chunk:" + Str$(Int(QuadsVisible / TotalChunksLoaded)), LightBlue
                 PrintString 0, 80, "Queue Size:" + Str$(Queue_ChunkLoad.Size), LightBlue
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
-                If UseMultiThreading Then
-                    If Len(WorkerStatusString$) = 0 Then WorkerStatusString$ = String$(MaxThreads, 32)
-                    __I = 0: For I = LBound(WorkerStatus) To UBound(WorkerStatus)
-                        __I = __I + 1: Select Case WorkerStatus(I)
-                            'Case 0: Asc(WorkerStatusString$, __I) = 32
-                            Case 1: Asc(WorkerStatusString$, __I) = 67
-                            Case 2: Asc(WorkerStatusString$, __I) = 82
-                            Case 3: Asc(WorkerStatusString$, __I) = 70
-                        End Select
-                    Next I
-                    PrintString 0, 112, "Threads: " + WorkerStatusString$, Pink
-                End If
+                If Len(WorkerStatusString$) = 0 Then WorkerStatusString$ = String$(MaxThreads, 32)
+                __I = 0: For I = LBound(WorkerStatus) To UBound(WorkerStatus)
+                    __I = __I + 1: Select Case WorkerStatus(I)
+                        Case 1: Asc(WorkerStatusString$, __I) = 71
+                        Case 2: Asc(WorkerStatusString$, __I) = 82
+                        Case 3: Asc(WorkerStatusString$, __I) = 70
+                    End Select
+                Next I
+                PrintString 0, 112, "Threads: " + WorkerStatusString$, White
                 If Show_Chunk_Time_Graph Then
                     Line (16, _Height - 68)-(271, _Height - 5), _RGB32(0, 63), BF
                     For I = 1 To 256
@@ -641,7 +629,7 @@ End Function
 '$Include:'Chunk.bm'
 Sub workerThread (id As Long)
     Dim As Single ST, Height, dHeight, __TextureHeight
-    Dim As Long I, CX, CZ, PX, PZ, X, Z, Y, Y_1
+    Dim As Long I, CX, CZ, PX, PZ, X, Z, Y, Y_1, J
     Dim As _Unsigned Long ChunkId, VertexId, TextureId, TextureOffset, TransparentBlocksCount
     Dim As _Unsigned _Byte Block, LayerCombination, isAirBlock, isTransparentBlock, Mode, Visibility, Face, Light, omitSimilarFace, CurrentLayer, BelowLayer, AboveLayer
     Dim am#, tot#, m#, sc#, __x&, __z&, io%%, tx!, ty!, fx&, fy&, dx!, dy!, fx1&, fy1&, h&, i1!, i2!
@@ -676,27 +664,25 @@ Sub workerThread (id As Long)
                 TransparentBlocksCount = 0
                 For X = 0 To 17
                     For Z = 0 To 17
-                        If UseNoise Then
-                            am# = 1: tot# = 0: m# = 0: sc# = 1 / 256
-                            __x& = PX + X - _ShR(Seed, 16): __z& = PZ + Z - (Seed And 65535)
-                            For io%% = 0 To 3
-                                tx! = __x& * sc#: ty! = __z& * sc#: fx& = Int(tx!): fy& = Int(ty!)
-                                dx! = tx! - fx&: dx! = dx! * dx! * (3 - 2 * dx!): dy! = ty! - fy&: dy! = dy! * dy! * (3 - 2 * dy!): fx1& = fx& + 1: fy1& = fy& + 1
 
-                                h& = fx& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n00! = (h& And 2147483647) / 2147483647
-                                h& = fx1& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n10! = (h& And 2147483647) / 2147483647
-                                h& = fx& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n01! = (h& And 2147483647) / 2147483647
-                                h& = fx1& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n11! = (h& And 2147483647) / 2147483647
+                        am# = 1: tot# = 0: m# = 0: sc# = 1 / 256
+                        __x& = PX + X - _ShR(Seed, 16): __z& = PZ + Z - (Seed And 65535)
+                        For io%% = 0 To 3
+                            tx! = __x& * sc#: ty! = __z& * sc#: fx& = Int(tx!): fy& = Int(ty!)
+                            dx! = tx! - fx&: dx! = dx! * dx! * (3 - 2 * dx!): dy! = ty! - fy&: dy! = dy! * dy! * (3 - 2 * dy!): fx1& = fx& + 1: fy1& = fy& + 1
 
-                                i1! = n00! + (n10! - n00!) * dx!: i2! = n01! + (n11! - n01!) * dx!
-                                tot# = tot# + am# * (i1! + (i2! - i1!) * dy!)
-                                m# = m# + am#: am# = am# * .5: sc# = sc# * 2
-                            Next
-                            Height = tot# / m# * 64 + 32
-                            Height = _Clamp(1, 1 + Height, 256)
-                        Else
-                            Height = 65 ' _Clamp(1, 128 + 64 * Sin((PX + X) / 64) * Sin((PZ + Z) / 64), 256)
-                        End If
+                            h& = fx& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n00! = (h& And 2147483647) / 2147483647
+                            h& = fx1& * 73856093 Xor fy& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n10! = (h& And 2147483647) / 2147483647
+                            h& = fx& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n01! = (h& And 2147483647) / 2147483647
+                            h& = fx1& * 73856093 Xor fy1& * 19349663 Xor Seed * 193: h& = (h& Xor _ShR(h&, 13)) * 60493: h& = h& Xor _ShR(h&, 16): n11! = (h& And 2147483647) / 2147483647
+
+                            i1! = n00! + (n10! - n00!) * dx!: i2! = n01! + (n11! - n01!) * dx!
+                            tot# = tot# + am# * (i1! + (i2! - i1!) * dy!)
+                            m# = m# + am#: am# = am# * .5: sc# = sc# * 2
+                        Next
+                        Height = tot# / m# * 64 + 32
+                        Height = _Clamp(1, 1 + Height, 256)
+
                         Chunks(ChunkId).MaximumHeight = _Max(Height + 1, Chunks(ChunkId).MaximumHeight)
                         Chunks(ChunkId).MinimumHeight = _Min(Chunks(ChunkId).MinimumHeight, Height - 2)
                         dHeight = Height - Int(Height)
@@ -728,8 +714,6 @@ Sub workerThread (id As Long)
                 VertexId = 0
                 Chunks(ChunkId).VerticesCount = 0
                 Chunks(ChunkId).TransparentVerticesCount = 0
-                PX = Chunks(ChunkId).TX
-                PZ = Chunks(ChunkId).TZ
                 For Mode = 0 To 1
                     For Y = Chunks(ChunkId).MinimumHeight To Chunks(ChunkId).MaximumHeight
                         Y_1 = Y - 1
@@ -770,21 +754,18 @@ Sub workerThread (id As Long)
                                             Case 5: Light = 11: If omitSimilarFace And Block = Chunks(ChunkId).Blocks(X, Y, Z - 1) Then I = I + 3: _Continue
                                         End Select
                                     End If
-                                    Chunks(ChunkId).Vertices(VertexId).X = PX + X + CubeVertices(I).X
+                                    Chunks(ChunkId).Vertices(VertexId).X = X + CubeVertices(I).X
                                     Chunks(ChunkId).Vertices(VertexId).Y = Y + CubeVertices(I).Y
-                                    Chunks(ChunkId).Vertices(VertexId).Z = PZ + Z + CubeVertices(I).Z
-                                    Chunks(ChunkId).TextureCoords(VertexId).X = CubeTextureCoords(I).X
-                                    Chunks(ChunkId).TextureCoords(VertexId).Y = (CubeTextureCoords(I).Y + TextureOffset) * __TextureHeight
+                                    Chunks(ChunkId).Vertices(VertexId).Z = Z + CubeVertices(I).Z
+                                    Chunks(ChunkId).TextureOffsets(VertexId) = TextureOffset
+                                    Chunks(ChunkId).Textures(VertexId) = I
                                     AO_dX = _ShL(CubeVertices(I).X, 1) - 1: AO_dY = _ShL(CubeVertices(I).Y, 1) - 1: AO_dZ = _ShL(CubeVertices(I).Z, 1) - 1: AO_t = Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z + AO_dZ)) + Sgn(Chunks(ChunkId).Blocks(X + AO_dX, Y + AO_dY, Z)) + Sgn(Chunks(ChunkId).Blocks(X, Y + AO_dY, Z + AO_dZ)) + _Clamp(0, 15 - Light, 15)
-                                    Chunks(ChunkId).Colors(VertexId).X = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
-                                    Chunks(ChunkId).Colors(VertexId).Y = Chunks(ChunkId).Colors(VertexId).X
-                                    Chunks(ChunkId).Colors(VertexId).Z = Chunks(ChunkId).Colors(VertexId).X
+                                    Chunks(ChunkId).Colors(VertexId) = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
                                     Chunks(ChunkId).TransparentVerticesCount = Chunks(ChunkId).TransparentVerticesCount - (Mode = 1)
                                     Chunks(ChunkId).VerticesCount = Chunks(ChunkId).VerticesCount - (Mode = 0)
                                     VertexId = VertexId + 1
                                 Next I
                     Next Z, X, Y
-                    VertexId = VertexId + 1
                 Next Mode
                 TotalChunksLoaded = TotalChunksLoaded + 1
                 Chunks(ChunkId).DataLoaded = 255
@@ -793,6 +774,93 @@ Sub workerThread (id As Long)
             Workers(id).Start = 0
             Workers(id).TimeTook = Timer(0.01) - ST
             Workers(id).Finished = 1
+            unlockThread id
+
+        ElseIf Workers(id).Start = 2 Then
+            ST = Timer(0.01)
+            If DrawZero Then ' need to build one
+                One_TotalVertices = 0
+                One_TotalTransparentVertices = 0
+                One_TotalChunks = 0
+                For I = 1 To MaxChunks
+                    If Chunks(I).DataLoaded < 255 Then _Continue
+                    PX = Chunks(I).TX
+                    PZ = Chunks(I).TZ
+                    For VertexId = 0 To Chunks(I).VerticesCount - 1
+                        One_Vertices(One_TotalVertices).X = PX + Chunks(I).Vertices(VertexId).X
+                        One_Vertices(One_TotalVertices).Y = Chunks(I).Vertices(VertexId).Y
+                        One_Vertices(One_TotalVertices).Z = PZ + Chunks(I).Vertices(VertexId).Z
+                        One_TextureCoords(One_TotalVertices).X = CubeTextureCoords(Chunks(I).Textures(VertexId)).X
+                        One_TextureCoords(One_TotalVertices).Y = (CubeTextureCoords(Chunks(I).Textures(VertexId)).Y + Chunks(I).TextureOffsets(VertexId)) * __TextureHeight
+                        One_Colors(One_TotalVertices).X = Chunks(I).Colors(VertexId)
+                        One_Colors(One_TotalVertices).Y = Chunks(I).Colors(VertexId)
+                        One_Colors(One_TotalVertices).Z = Chunks(I).Colors(VertexId)
+                        One_TotalVertices = One_TotalVertices + 1
+                    Next VertexId
+                    One_TotalChunks = One_TotalChunks + 1
+                Next I
+                For I = 1 To MaxChunks
+                    If Chunks(I).DataLoaded < 255 Then _Continue
+                    PX = Chunks(I).TX
+                    PZ = Chunks(I).TZ
+                    J = One_TotalVertices + One_TotalTransparentVertices
+                    For VertexId = Chunks(I).VerticesCount To Chunks(I).TransparentVerticesCount - 1 + Chunks(I).VerticesCount
+                        One_Vertices(J).X = PX + Chunks(I).Vertices(VertexId).X
+                        One_Vertices(J).Y = Chunks(I).Vertices(VertexId).Y
+                        One_Vertices(J).Z = PZ + Chunks(I).Vertices(VertexId).Z
+                        One_TextureCoords(J).X = CubeTextureCoords(Chunks(I).Textures(VertexId)).X
+                        One_TextureCoords(J).Y = (CubeTextureCoords(Chunks(I).Textures(VertexId)).Y + Chunks(I).TextureOffsets(VertexId)) * __TextureHeight
+                        One_Colors(J).X = Chunks(I).Colors(VertexId)
+                        One_Colors(J).Y = Chunks(I).Colors(VertexId)
+                        One_Colors(J).Z = Chunks(I).Colors(VertexId)
+                        J = J + 1
+                    Next VertexId
+                    One_TotalTransparentVertices = J - One_TotalVertices
+                Next I
+            Else ' need to build zero
+                Zero_TotalVertices = 0
+                Zero_TotalTransparentVertices = 0
+                Zero_TotalChunks = 0
+                For I = 1 To MaxChunks
+                    If Chunks(I).DataLoaded < 255 Then _Continue
+                    PX = Chunks(I).TX
+                    PZ = Chunks(I).TZ
+                    For VertexId = 0 To Chunks(I).VerticesCount - 1
+                        Zero_Vertices(Zero_TotalVertices).X = PX + Chunks(I).Vertices(VertexId).X
+                        Zero_Vertices(Zero_TotalVertices).Y = Chunks(I).Vertices(VertexId).Y
+                        Zero_Vertices(Zero_TotalVertices).Z = PZ + Chunks(I).Vertices(VertexId).Z
+                        Zero_TextureCoords(Zero_TotalVertices).X = CubeTextureCoords(Chunks(I).Textures(VertexId)).X
+                        Zero_TextureCoords(Zero_TotalVertices).Y = (CubeTextureCoords(Chunks(I).Textures(VertexId)).Y + Chunks(I).TextureOffsets(VertexId)) * __TextureHeight
+                        Zero_Colors(Zero_TotalVertices).X = Chunks(I).Colors(VertexId)
+                        Zero_Colors(Zero_TotalVertices).Y = Chunks(I).Colors(VertexId)
+                        Zero_Colors(Zero_TotalVertices).Z = Chunks(I).Colors(VertexId)
+                        Zero_TotalVertices = Zero_TotalVertices + 1
+                    Next VertexId
+                    Zero_TotalChunks = Zero_TotalChunks + 1
+                Next I
+                For I = 1 To MaxChunks
+                    If Chunks(I).DataLoaded < 255 Then _Continue
+                    PX = Chunks(I).TX
+                    PZ = Chunks(I).TZ
+                    J = Zero_TotalVertices + Zero_TotalTransparentVertices
+                    For VertexId = Chunks(I).VerticesCount To Chunks(I).TransparentVerticesCount - 1 + Chunks(I).VerticesCount
+                        Zero_Vertices(J).X = PX + Chunks(I).Vertices(VertexId).X
+                        Zero_Vertices(J).Y = Chunks(I).Vertices(VertexId).Y
+                        Zero_Vertices(J).Z = PZ + Chunks(I).Vertices(VertexId).Z
+                        Zero_TextureCoords(J).X = CubeTextureCoords(Chunks(I).Textures(VertexId)).X
+                        Zero_TextureCoords(J).Y = (CubeTextureCoords(Chunks(I).Textures(VertexId)).Y + Chunks(I).TextureOffsets(VertexId)) * __TextureHeight
+                        Zero_Colors(J).X = Chunks(I).Colors(VertexId)
+                        Zero_Colors(J).Y = Chunks(I).Colors(VertexId)
+                        Zero_Colors(J).Z = Chunks(I).Colors(VertexId)
+                        J = J + 1
+                    Next VertexId
+                    Zero_TotalTransparentVertices = J - Zero_TotalVertices
+                Next I
+            End If
+            lockThread id
+            Workers(id).Start = 0
+            Workers(id).TimeTook = Timer(0.01) - ST
+            Workers(id).Finished = 2
             unlockThread id
 
         ElseIf Workers(id).Freeze Then

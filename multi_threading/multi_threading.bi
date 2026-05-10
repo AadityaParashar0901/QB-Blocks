@@ -7,7 +7,7 @@ Declare Library "./multi_threading"
 End Declare
 Type ChunkWorker ' for multithreading
     As Long id
-    As _Unsigned Long ChunkId(0 to 255)
+    As _Unsigned Long ChunkId(0 to MaxJobsPerThread)
     As _Unsigned Long Jobs
     As _Unsigned _Byte Start, Finished, Freeze, Quit
     As Single TimeTook
