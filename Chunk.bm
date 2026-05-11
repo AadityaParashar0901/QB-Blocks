@@ -1,83 +1,35 @@
-Sub Build_ChunkQueue
-    Dim As Vec3_Long tmpChunksStart, tmpChunksEnd
-    Dim As Long I, X, Z
-    Dim ChunkId As _Unsigned Long
-    LongBuffer_Clear Queue_ChunkLoad
+Sub Build_ChunkQueue Static
+    Static As Vec3_Long tmpChunksStart, tmpChunksEnd
+    Static As Long I, X, Z, S, E, Stp, T
+    Stp = 1
+    ChunksStart.X = PlayerChunk.X - MaxRenderDistance
+    ChunksStart.Z = PlayerChunk.Z - MaxRenderDistance
+    ChunksEnd.X = PlayerChunk.X + MaxRenderDistance
+    ChunksEnd.Z = PlayerChunk.Z + MaxRenderDistance
+    ReDim _Retain Chunks(ChunksStart.X To ChunksEnd.X, ChunksStart.Z To ChunksEnd.Z) As Chunk
     For R = 0 To RenderDistance
+        LongBuffer_Clear Rings(R).Queue_X
+        LongBuffer_Clear Rings(R).Queue_Z
+        Rings(R).State = 0
+        Rings(R).Progress = 0
         tmpChunksStart.X = PlayerChunk.X - R
         tmpChunksStart.Z = PlayerChunk.Z - R
         tmpChunksEnd.X = PlayerChunk.X + R
         tmpChunksEnd.Z = PlayerChunk.Z + R
-        For I = 0 To 3
-            Select Case I
-                Case 0: Z = tmpChunksStart.Z
-                Case 1: X = tmpChunksStart.X
-                Case 2: Z = tmpChunksEnd.Z
-                Case 3: X = tmpChunksEnd.X: tmpChunksEnd.Z = tmpChunksEnd.Z - 1
-            End Select
-            Select Case I And 1
-                Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
-                        ChunkId = getChunkID(X, Z)
-                        IsDifferentChunk = Chunks(ChunkId).X <> X Or Chunks(ChunkId).Z <> Z
-                        If IsDifferentChunk Or Chunks(ChunkId).DataLoaded < 253 Then
-                            If Chunks(ChunkId).DataLoaded = 255 Then
-                                Chunks(ChunkId).DataLoaded = 0
-                                TotalChunksLoaded = TotalChunksLoaded - 1
-                            End If
-                            If IsDifferentChunk Then WipeChunk ChunkId
-                            Chunks(ChunkId).X = X: Chunks(ChunkId).Z = Z
-                            LongBuffer_Push Queue_ChunkLoad, ChunkId
-                        End If
-                    Next X
-                Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
-                        ChunkId = getChunkID(X, Z)
-                        IsDifferentChunk = Chunks(ChunkId).X <> X Or Chunks(ChunkId).Z <> Z
-                        If IsDifferentChunk Or Chunks(ChunkId).DataLoaded < 253 Then
-                            If Chunks(ChunkId).DataLoaded = 255 Then
-                                Chunks(ChunkId).DataLoaded = 0
-                                TotalChunksLoaded = TotalChunksLoaded - 1
-                            End If
-                            If IsDifferentChunk Then WipeChunk ChunkId
-                            Chunks(ChunkId).X = X: Chunks(ChunkId).Z = Z
-                            LongBuffer_Push Queue_ChunkLoad, ChunkId
-                        End If
-                    Next Z
-            End Select
-        Next I
-    Next R
-    For R = RenderDistance + 1 To MaxRenderDistance
-        tmpChunksStart.X = PlayerChunk.X - R
-        tmpChunksStart.Z = PlayerChunk.Z - R
-        tmpChunksEnd.X = PlayerChunk.X + R
-        tmpChunksEnd.Z = PlayerChunk.Z + R
-        For I = 0 To 3
-            Select Case I
-                Case 0: Z = tmpChunksStart.Z
-                Case 1: X = tmpChunksStart.X
-                Case 2: Z = tmpChunksEnd.Z
-                Case 3: X = tmpChunksEnd.X: tmpChunksEnd.Z = tmpChunksEnd.Z - 1
-            End Select
-            Select Case I And 1
-                Case 0: For X = tmpChunksStart.X + Sgn(I) To tmpChunksEnd.X
-                        ChunkId = getChunkID(X, Z)
-                        TotalChunksLoaded = TotalChunksLoaded + (Chunks(ChunkId).DataLoaded = 255)
-                        Chunks(ChunkId).DataLoaded = 0
-                    Next X
-                Case 1: For Z = tmpChunksStart.Z + Sgn(I) To tmpChunksEnd.Z
-                        ChunkId = getChunkID(X, Z)
-                        TotalChunksLoaded = TotalChunksLoaded + (Chunks(ChunkId).DataLoaded = 255)
-                        Chunks(ChunkId).DataLoaded = 0
-                    Next Z
-            End Select
+        For I = 0 To _IIf(R, 3, 0)
+            X = _IIf(I And 1, _IIf(I = 1, tmpChunksStart.X, tmpChunksEnd.X), 0)
+            Z = _IIf(I And 1, 0, _IIf(I, tmpChunksEnd.Z, tmpChunksStart.Z))
+            S = _IIf(I And 1, tmpChunksStart.Z + 1, tmpChunksStart.X + _IIf(I And 2, 1, 0))
+            E = _IIf(I And 1, tmpChunksEnd.Z - _IIf(I = 3, 1, 0), tmpChunksEnd.X)
+            For T = S To E Step Stp
+                X = _IIf(I And 1, X, T): Z = _IIf(I And 1, T, Z)
+                LongBuffer_Push Rings(R).Queue_X, X
+                LongBuffer_Push Rings(R).Queue_Z, Z
+                Rings(R).Progress = Rings(R).Progress + 1
+            Next T
         Next I
     Next R
 End Sub
-Function getChunkID~& (X As Long, Z As Long)
-    getChunkID~& = 1 + ModFloor(MaxRenderDistanceX * Z + X, MaxChunks)
+Function GetBlock~%% (X As Long, Y As Long, Z As Long)
+    GetBlock~%% = Chunks(Int(X / 16), Int(Z / 16)).Blocks(X And 15, Y And 255, Z And 15)
 End Function
-Sub WipeChunk (ChunkId As _Unsigned Long)
-    Dim M As _MEM
-    M = _Mem(_Offset(Chunks(ChunkId)), Len(Chunks(ChunkId)))
-    _MemFill M, M.OFFSET, M.SIZE, 0 As _Byte
-    _MemFree M
-End Sub
