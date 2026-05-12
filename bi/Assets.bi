@@ -1,6 +1,6 @@
 Dim Shared As Long TextureAtlas
 Dim Shared As _Unsigned Integer TextureSize, TotalTextures, TotalBlocks
-Dim As String FileContents
+Dim FileContents As String
 
 '    Hash Table for getBlockID
 Dim Shared As String BlockHashTable_List(0 To 255)

@@ -1,0 +1,9 @@
+AO_dX = X + _ShL(CubeVertices(I).X, 1) - 1
+AO_dY = Y + _ShL(CubeVertices(I).Y, 1) - 1
+AO_dZ = Z + _ShL(CubeVertices(I).Z, 1) - 1
+AO_CX = CX + _IIf(AO_dX > 15, 1, _IIf(AO_dX < 0, -1, 0))
+AO_CZ = CZ + _IIf(AO_dZ > 15, 1, _IIf(AO_dZ < 0, -1, 0))
+AO_corner = _IIf(Chunks(AO_CX, AO_CZ).Blocks(AO_dX And 15, AO_dY And 255, AO_dZ And 15), 1, 0)
+AO_side_XY = _IIf(Chunks(AO_CX, CZ).Blocks(AO_dX And 15, AO_dY And 255, Z), 1, 0)
+AO_side_YZ = _IIf(Chunks(CX, AO_CZ).Blocks(X, AO_dY And 255, AO_dZ And 15), 1, 0)
+AO_t = AO_corner + AO_side_XY + AO_side_YZ + _Clamp(0, 15 - Light, 15)

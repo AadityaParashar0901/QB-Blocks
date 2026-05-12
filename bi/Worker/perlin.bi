@@ -1,6 +1,6 @@
 perlin2d_total = 0
 perlin2d_amplitude = 1
-perlin2d_frequency = 1 / 256
+perlin2d_frequency = 1 / WorldNoiseSmoothness
 
 For perlin2d_i = 0 To 3
 
