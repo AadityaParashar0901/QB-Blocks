@@ -24,7 +24,7 @@ Sub Build_Clouds
     _FreeImage CloudsImage
 End Sub
 Sub DrawClouds
-    If Cslouds = 0 Then Exit Sub
+    If Clouds = 0 Then Exit Sub
     Dim As _Unsigned Long I
     Dim As Single __MaxX, __MinX, __MaxZ, __MinZ
     Static As Single CloudsTranslateX

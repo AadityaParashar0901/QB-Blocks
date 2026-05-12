@@ -7,7 +7,7 @@ Declare Library "./multi_threading"
 End Declare
 Type ChunkWorker ' for multithreading
     As Long id
-    As _Unsigned Long ChunksX(0 to MaxJobsPerThread), ChunksZ(0 to maxjobsperthread)
+    As _Unsigned Long ChunksX(0 To MaxJobsPerThread), ChunksZ(0 To MaxJobsPerThread)
     As _Unsigned Long Jobs
     As _Unsigned _Byte RingId, CanChangeState, Buffer
     As _Unsigned _Byte Start, Finished, Freeze, Quit
@@ -15,5 +15,8 @@ Type ChunkWorker ' for multithreading
     As Single ST
 End Type
 Dim Shared Workers(1 To MaxThreads) As ChunkWorker
-Dim Shared WorkerStatus(1 To MaxThreads) As _Unsigned _Byte
+Type ChunkWorkerStatus
+    As _Unsigned _Byte State, RingId
+End Type
+Dim Shared WorkerStatus(1 To MaxThreads) As ChunkWorkerStatus
 Dim As _Unsigned _Byte JobsPerThread: JobsPerThread = 1

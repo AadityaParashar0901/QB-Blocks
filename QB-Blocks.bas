@@ -32,7 +32,7 @@ End Type
 Const GameVersion = 6.2
 
 Const MaxThreads = 1
-Const MaxJobsPerThread = 16
+Const MaxJobsPerThread = 64
 
 $Let REPORTERROR = 0
 Const MaxRenderDistance = 17
@@ -126,6 +126,8 @@ Type Chunk
     As _Unsigned _Byte Textures(0 To ChunkPipelineSize), TextureOffsets(0 To ChunkPipelineSize)
     As _Unsigned _Byte Colors(0 To ChunkPipelineSize) ' Currently unsigned byte because it is grayscale
     As _Unsigned Integer VerticesCount, TransparentVerticesCount
+
+    As _Unsigned _Byte Padding(0 to 48006)
 End Type
 
 Dim Shared Chunks(0, 0) As Chunk, ChunksStart As Vec3_Long, ChunksEnd As Vec3_Long
@@ -315,37 +317,39 @@ Do
 
     ElseIf GiveWorkToThread Then
         For RingId = 0 To RenderDistance ' Dispatcher
-            If Rings(RingId).State < CHUNK_STATE_Buffer _AndAlso Rings(RingId).Queue_X.Size > 0 _AndAlso _IIf(RingId < RenderDistance, Rings(RingId).State < Rings(RingId + 1).State + 1, -1) Then
-                For Id = 1 To MaxThreads
+            If Rings(RingId).State < CHUNK_STATE_Buffer _AndAlso Rings(RingId).Queue_X.Size > 0 _AndAlso _IIf(RingId < RenderDistance, Rings(RingId).State <= Rings(RingId + 1).State, -1) Then
+                Id = _Clamp(1, 4 - Rings(RingId).State, MaxThreads)
 
-                    If Rings(RingId).State = CHUNK_STATE_Mesh And Id > 1 Then Exit For
-                    If Workers(Id).Start Or Workers(Id).Finished Then _Continue
+                If Rings(RingId).State = CHUNK_STATE_Mesh And Id > 1 Then Exit For
+                If Workers(Id).Start Or Workers(Id).Finished Then _Continue
 
-                    lockThread Id
-                    Workers(Id).Jobs = 0
-                    Workers(Id).Freeze = 0
+                lockThread Id
+                Workers(Id).Jobs = 0
+                Workers(Id).Freeze = 0
 
-                    For I = 0 To MaxJobsPerThread - 1
-                        If Rings(RingId).Progress = 0 _OrElse Rings(RingId).Queue_X.Size = 0 Then Exit For
-                        X = LongBuffer_Pop(Rings(RingId).Queue_X)
-                        Z = LongBuffer_Pop(Rings(RingId).Queue_Z)
-                        Workers(Id).ChunksX(I) = X: Workers(Id).ChunksZ(I) = Z
-                        Workers(Id).Jobs = Workers(Id).Jobs + 1
-                        Rings(RingId).Progress = Rings(RingId).Progress - 1
-                    Next I
+                For I = 0 To MaxJobsPerThread - 1
+                    If Rings(RingId).Progress = 0 _OrElse Rings(RingId).Queue_X.Size = 0 Then Exit For
+                    X = LongBuffer_Pop(Rings(RingId).Queue_X)
+                    Z = LongBuffer_Pop(Rings(RingId).Queue_Z)
+                    Workers(Id).ChunksX(I) = X: Workers(Id).ChunksZ(I) = Z
+                    Workers(Id).Jobs = Workers(Id).Jobs + 1
+                    Rings(RingId).Progress = Rings(RingId).Progress - 1
+                Next I
 
-                    Workers(Id).RingId = RingId
-                    Workers(Id).CanChangeState = Rings(RingId).Progress = 0
-                    Workers(Id).Buffer = _IIf(Rings(RingId).ChangeBuffer, 1 - CurrentBuffer(RingId), CurrentBuffer(RingId))
+                Workers(Id).RingId = RingId
+                Workers(Id).CanChangeState = Rings(RingId).Progress = 0
+                Workers(Id).Buffer = _IIf(Rings(RingId).ChangeBuffer, 1 - CurrentBuffer(RingId), CurrentBuffer(RingId))
 
-                    WorkerStatus(Id) = Rings(RingId).State + 1
-                    Workers(Id).Start = Rings(RingId).State + 1
-                    unlockThread Id
+                WorkerStatus(Id).State = Rings(RingId).State + 1
+                WorkerStatus(Id).RingId = RingId
+                Workers(Id).Start = Rings(RingId).State + 1
+                unlockThread Id
 
-                    Rings(RingId).Busy = Rings(RingId).Busy + 1
-                    Exit For
-                Next Id
+                Rings(RingId).Busy = Rings(RingId).Busy + 1
+                Exit For
+
             End If
+            If Rings(RingId).State <= Rings(RingId + 1).State - 1 Then Exit For
         Next RingId
     End If
     For Id = 1 To MaxThreads ' Collector
@@ -385,8 +389,9 @@ Do
         End If
         Workers(Id).Finished = 0
         Workers(Id).RingId = 0
-        Workers(Id).Freeze = -1
-        WorkerStatus(Id) = 0
+        'Workers(Id).Freeze = -1
+        WorkerStatus(Id).State = 0
+        WorkerStatus(Id).RingId = 0
 
         Rings(RingId).Busy = Rings(RingId).Busy - 1
     Next Id
@@ -668,7 +673,7 @@ Sub _GL Static
                 PrintString 0, 96, "Total Clouds:" + Str$(TotalClouds), LightGreen
 
                 WorkerStatusString$ = "": For I = LBound(WorkerStatus) To UBound(WorkerStatus)
-                    WorkerStatusString$ = WorkerStatusString$ + " " + WorkerStates$(WorkerStatus(I))
+                    WorkerStatusString$ = WorkerStatusString$ + " " + _IIf(Workers(I).Freeze, "Frozen", WorkerStates$(WorkerStatus(I).State) + "(" + _ToStr$(WorkerStatus(I).RingId) + ")")
                 Next I
                 PrintString 0, 112, "Threads:" + WorkerStatusString$, White
 
@@ -682,6 +687,14 @@ Sub _GL Static
                         Line (I + 15, _Height - 5)-(I + 15, _Max(_Height - 70, _Height - 5 - Asc(GraphTimer, I))), __I, BF
                     Next I
                 End If
+
+                ' Chunk Info Graph
+                I = ScreenWidth - MaxRenderDistance * 8 - 8: For X = ChunksStart.X To ChunksEnd.X
+                    J = 3: For Z = ChunksStart.Z To ChunksEnd.Z
+                        If LBound(Chunks, 1) > X Or UBound(Chunks, 1) < X Or LBound(Chunks, 2) > Z Or UBound(Chunks, 2) < Z Then _Continue
+                        Line (I, J)-(I + 3, J + 3), _RGB32(_ShR(255, 4 - Chunks(X, Z).State)), BF
+                    J = J + 4: Next Z
+                I = I + 4: Next X
             End If
 
             If GL_CURRENT_STATE = CONST_GL_STATE_Pause_Menu Then Line (0, 0)-(_Width - 1, _Height - 1), _RGB32(0, 127), BF
@@ -701,8 +714,8 @@ End Function
 '--- Chunk Management ---
 '$Include:'Chunk.bm'
 Sub workerThread (id As Long)
-    Dim As Single ST
-    Dim As _Unsigned Integer FreezeTimer, JobId, RingId, State
+    Dim As Single ST, FreezeTimer
+    Dim As _Unsigned Integer JobId, RingId, State
     Dim As Long I, CX, CZ, PX, PZ, X, Y, Z
     Dim As _Unsigned Long RingVertexId, VertexId
     Dim As _Unsigned _Byte NewBuffer
@@ -721,17 +734,16 @@ Sub workerThread (id As Long)
     Do Until Workers(id).Quit
         If Workers(id).Freeze Then
             _Delay 0.1
-            FreezeTimer = 0
+            FreezeTimer = Timer(0.01)
             _Continue
         End If
 
         ' Auto-Freeze
-        FreezeTimer = FreezeTimer + Sgn(65535 - FreezeTimer)
-        If FreezeTimer = 65535 Then Workers(id).Freeze = -1
+        If Timer(0.01) - FreezeTimer > 1 Then Workers(id).Freeze = -1
         If Workers(id).Start = 0 Then _Continue
-        FreezeTimer = 0
+        FreezeTimer = Timer(0.01)
 
-        ST = Timer(0.01)
+        ST = FreezeTimer
         State = Workers(id).Start
         Select Case State
             Case CHUNK_STATE_HeightMap
@@ -848,10 +860,13 @@ Sub workerThread (id As Long)
                                     For I = 0 To 23
                                         If (I And 3) = 0 Then
                                             Face = _ShR(I, 2)
+
                                             If _ReadBit(Visibility, Face) = 0 Then I = I + 3: _Continue
+
                                             TextureID = Blocks(Block).Faces(Face)
                                             If TextureID = 0 Then I = I + 3: _Continue
                                             TextureOffset = Textures(TextureID).Y
+
                                             omitSimilarFace = omitBlockFace(Block, Face)
                                             Select Case Face
                                                 Case 0: Light = 9: If omitSimilarFace _AndAlso Block = Chunks(CX + Int((X + 1) / 16), CZ).Blocks((X + 1) And 15, Y And 255, Z And 15) Then I = I + 3: _Continue
@@ -862,11 +877,14 @@ Sub workerThread (id As Long)
                                                 Case 5: Light = 11: If omitSimilarFace _AndAlso Block = Chunks(CX, CZ + Int((Z - 1) / 16)).Blocks(X And 15, Y And 255, (Z - 1) And 15) Then I = I + 3: _Continue
                                             End Select
                                         End If
+
                                         Chunks(CX, CZ).Vertices(VertexId).X = X + CubeVertices(I).X
                                         Chunks(CX, CZ).Vertices(VertexId).Y = Y + CubeVertices(I).Y
                                         Chunks(CX, CZ).Vertices(VertexId).Z = Z + CubeVertices(I).Z
+
                                         Chunks(CX, CZ).Textures(VertexId) = I
                                         Chunks(CX, CZ).TextureOffsets(VertexId) = TextureOffset
+
                                         '$Include:'bi/Worker/AmbientOcclusion.bi'
                                         Chunks(CX, CZ).Colors(VertexId) = 255 - 15 * _Clamp(15 - Light, AO_t, 15)
 
