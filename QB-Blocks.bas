@@ -38,10 +38,12 @@ Const MaxRenderPipelineSize = MaxChunks * ChunkDataSize
 
 '--- Game Default Settings ---
 Dim Shared As _Unsigned _Byte Fov, Fog, Fps, RenderDistance
+Dim Shared As Single MouseSensitivity
 Fov = 90
 Fog = -1
 Fps = 60 ' _FPS
 RenderDistance = 8
+MouseSensitivity = 0.1
 '-----------------------------
 
 '--- World Generation Settings ---
@@ -404,12 +406,14 @@ Sub _GL Static
             If oldPlayerChunk.X <> PlayerChunk.X Or oldPlayerChunk.Z <> PlayerChunk.Z Then NeedToBuild_ChunkQueue = -1
             '-------------------------
             '--- Mouse Movement ---
+            _MouseHide
             While _MouseInput
-                _MouseHide
-                Player.Angle.X = ClampCycle(0, Player.Angle.X + _MouseMovementX / 8, 359.875)
-                Player.Angle.Y = _Clamp(-90, Player.Angle.Y + _MouseMovementY / 4, 90)
-                _MouseMove _Width / 2, _Height / 2
+                dMouseX = _MouseX - _Width / 2
+                dMouseY = _MouseY - _Height / 2
+                Player.Angle.X = ClampCycle(0, Player.Angle.X + dMouseX * MouseSensitivity, 360)
+                Player.Angle.Y = _Clamp(-90, Player.Angle.Y + dMouseY * MouseSensitivity, 90)
             Wend
+            _MouseMove _Width / 2, _Height / 2
             '----------------------
     End Select
     Select Case GL_CURRENT_STATE
